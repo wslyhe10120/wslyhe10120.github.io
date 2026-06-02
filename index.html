@@ -425,7 +425,7 @@
                     4. 执行动作选「新增记录」→ 映射到表格字段<br>
                     5. 保存后复制 Webhook URL 粘贴到上方<br>
                     <br>
-                    ⚠️ 如遇跨域(CORS)问题，需将此页面部署到服务器或通过Nginx代理
+                    ⚠️ 注意：现在已通过代理解决跨域问题，直接测试即可
                 </div>
             </div>
         </div>
@@ -513,18 +513,16 @@
         let scanning = false;
         let animFrameId = null;
 
-        let currentCustomer = '';           // 当前客户名
-        let batchItems = [];                 // 当前客户待录入的货号列表
-        let batchCodeSet = new Set();        // 当前批次去重
+        let currentCustomer = '';
+        let batchItems = [];
+        let batchCodeSet = new Set();
 
-        // 持久化记录: [{ customerName, articleNo, time }]
         let records = JSON.parse(localStorage.getItem('scanRecords') || '[]');
 
         let lastScanTime = 0;
         const SCAN_COOLDOWN = 2000;
         let feedbackTimer = null;
 
-        // ===== DingTalk Config =====
         let dingtalkWebhookUrl = localStorage.getItem('dingtalkWebhookUrl') || '';
         let dingtalkConnected = false;
 
@@ -532,23 +530,20 @@
         document.addEventListener('DOMContentLoaded', () => {
             renderRecords();
             updateStats();
-            // Restore DingTalk config
             if (dingtalkWebhookUrl) {
                 document.getElementById('dingtalkWebhook').value = dingtalkWebhookUrl;
                 updateDingTalkStatus(true);
             }
         });
 
-        // ===== Customer =====
         function startBatch() {
             const name = document.getElementById('customerName').value.trim();
             if (!name) { showToast('请先输入客户名称'); return; }
 
             currentCustomer = name;
             batchItems = [];
-            batchCodeSet = new Set();
+            batchCodeSet.clear();
 
-            // UI
             document.getElementById('customerName').disabled = true;
             document.getElementById('startBatchBtn').style.display = 'none';
             document.getElementById('switchBatchBtn').style.display = 'inline-block';
@@ -559,17 +554,14 @@
 
             renderBatch();
             updateActiveCustomerCount();
-
             showToast(`客户「${name}」已就绪，开始扫码吧！`);
         }
 
         function switchCustomer() {
-            // 如果有待保存的先提示
             if (batchItems.length > 0) {
                 if (!confirm(`当前客户「${currentCustomer}」有 ${batchItems.length} 条未保存，确认切换客户？`)) return;
             }
 
-            // 停止扫描
             if (scanning) {
                 stopScanner();
                 document.getElementById('scanToggleBtn').textContent = '开始扫码';
@@ -578,9 +570,8 @@
 
             currentCustomer = '';
             batchItems = [];
-            batchCodeSet = new Set();
+            batchCodeSet.clear();
 
-            // UI
             document.getElementById('customerName').value = '';
             document.getElementById('customerName').disabled = false;
             document.getElementById('customerName').focus();
@@ -602,7 +593,6 @@
             }
         }
 
-        // ===== Scanner =====
         async function toggleScanner() {
             if (!currentCustomer) { showToast('请先选择客户'); return; }
             const btn = document.getElementById('scanToggleBtn');
@@ -684,7 +674,6 @@
         function handleScanResult(decodedText) {
             const now = Date.now();
 
-            // 去重：当前批次 + 全局已录入
             if (batchCodeSet.has(decodedText) || isGloballyDuplicate(decodedText)) {
                 if (now - lastScanTime > SCAN_COOLDOWN) {
                     showFeedback('duplicate', `重复码：${truncate(decodedText, 40)}`, '已跳过');
@@ -694,7 +683,6 @@
                 return;
             }
 
-            // 新码！自动加入当前客户批次
             batchCodeSet.add(decodedText);
             lastScanTime = now;
 
@@ -725,7 +713,6 @@
             feedbackTimer = setTimeout(() => { el.className = 'scan-feedback'; }, 3000);
         }
 
-        // ===== Batch =====
         function renderBatch() {
             const listEl = document.getElementById('batchList');
             const countEl = document.getElementById('batchCount');
@@ -801,13 +788,13 @@
 
             const count = batchItems.length;
 
-            // Sync to DingTalk if connected
+            // 通过代理同步到钉钉
             if (dingtalkWebhookUrl) {
                 let syncOk = 0;
                 let syncFail = 0;
                 for (const record of customerRecords) {
                     try {
-                        const resp = await fetch(dingtalkWebhookUrl, {
+                        const resp = await fetch('/api/proxy', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -820,7 +807,7 @@
                         else syncFail++;
                     } catch (e) {
                         syncFail++;
-                        console.warn('DingTalk sync error:', e);
+                        console.warn('Sync error:', e);
                     }
                 }
                 if (syncFail === 0) {
@@ -833,14 +820,13 @@
             }
 
             batchItems = [];
-            batchCodeSet = new Set();
+            batchCodeSet.clear();
             renderBatch();
             updateActiveCustomerCount();
             renderRecords();
             updateStats();
         }
 
-        // ===== Records =====
         function renderRecords() {
             const container = document.getElementById('recordsList');
             const countEl = document.getElementById('recordCount');
@@ -851,7 +837,6 @@
                 return;
             }
 
-            // Group by customer
             const groups = {};
             records.forEach(r => {
                 if (!groups[r.customerName]) groups[r.customerName] = [];
@@ -923,7 +908,6 @@
             showToast('导出成功！');
         }
 
-        // ===== DingTalk Functions =====
         function toggleDingTalkSettings() {
             const body = document.getElementById('dingtalkBody');
             const arrow = document.getElementById('dingtalkArrow');
@@ -950,6 +934,7 @@
             }
         }
 
+        // 通过代理测试钉钉连接
         async function testDingTalkConnection() {
             if (!dingtalkWebhookUrl) {
                 showToast('请先填写Webhook URL');
@@ -957,7 +942,7 @@
             }
             showToast('正在测试连接...');
             try {
-                const resp = await fetch(dingtalkWebhookUrl, {
+                const resp = await fetch('/api/proxy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -972,15 +957,14 @@
                 } else {
                     const text = await resp.text();
                     showToast(`❌ 连接失败 (${resp.status})，请检查Webhook URL`);
-                    console.warn('DingTalk test error:', resp.status, text);
+                    console.warn('Test error:', resp.status, text);
                 }
             } catch (e) {
-                showToast('❌ 连接失败，可能是跨域(CORS)限制');
-                console.warn('DingTalk test error:', e);
+                showToast('❌ 连接失败，请检查代理是否正常工作');
+                console.warn('Test error:', e);
             }
         }
 
-        // ===== Utils =====
         function showToast(msg) {
             const toast = document.getElementById('toast');
             toast.textContent = msg;
@@ -998,7 +982,6 @@
             return str.length > len ? str.slice(0, len) + '…' : str;
         }
 
-        // Manual add: Enter key
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('manualArticleNo').addEventListener('keydown', e => {
                 if (e.key === 'Enter') manualAddArticle();
