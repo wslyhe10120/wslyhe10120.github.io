@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>扫码录入系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5; color: #333; min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            color: white; padding: 16px 20px; text-align: center;
+            position: sticky; top: 0; z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { font-size: 18px; font-weight: 600; letter-spacing: 1px; }
+
+        .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+
+        /* Step 1: Customer */
+        .customer-section {
+            background: white; border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 16px; padding: 16px;
+        }
+        .customer-section h2 {
+            font-size: 15px; font-weight: 600; margin-bottom: 12px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .customer-section h2::before { content: '👤'; }
+        .customer-row {
+            display: flex; gap: 10px; align-items: center;
+        }
+        .customer-row input {
+            flex: 1; padding: 10px 12px; border: 1.5px solid #ddd;
+            border-radius: 8px; font-size: 15px;
+        }
+        .customer-row input:focus {
+            outline: none; border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+        }
+        .customer-row input:disabled {
+            background: #e8f0fe; color: #1a73e8; font-weight: 600;
+            border-color: #1a73e8;
+        }
+        .customer-btn {
+            padding: 10px 16px; border: none; border-radius: 8px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            white-space: nowrap; transition: all 0.2s;
+        }
+        .customer-btn.start {
+            background: #1a73e8; color: white;
+        }
+        .customer-btn.start:disabled { background: #bbb; cursor: not-allowed; }
+        .customer-btn.switch {
+            background: #fff3e0; color: #e65100; display: none;
+        }
+        .customer-btn:active { transform: scale(0.96); }
+
+        .active-customer {
+            display: none; margin-top: 10px; padding: 8px 12px;
+            background: #e8f5e9; border-radius: 8px;
+            font-size: 13px; color: #2e7d32;
+        }
+        .active-customer.show { display: flex; align-items: center; gap: 6px; }
+        .active-customer::before { content: '✅'; }
+        .active-customer strong { margin-left: 4px; }
+
+        /* Scanner */
+        .scanner-section {
+            background: white; border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 16px; overflow: hidden;
+            opacity: 0.5; pointer-events: none;
+        }
+        .scanner-section.enabled { opacity: 1; pointer-events: auto; }
+
+        .scanner-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; border-bottom: 1px solid #f0f0f0;
+        }
+        .scanner-header h2 {
+            font-size: 15px; font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .scanner-header h2::before { content: '📷'; }
+        .scan-btn {
+            background: #1a73e8; color: white; border: none;
+            padding: 8px 18px; border-radius: 8px; font-size: 13px;
+            font-weight: 500; cursor: pointer; transition: all 0.2s;
+        }
+        .scan-btn:active { transform: scale(0.96); }
+        .scan-btn.stop { background: #e53935; }
+
+        .scanner-viewport {
+            position: relative; width: 100%; background: #000; display: none;
+        }
+        .scanner-viewport.active { display: block; }
+        .scanner-viewport video { width: 100%; height: auto; display: block; }
+        .scanner-viewport canvas { display: none; }
+
+        .scan-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none; display: flex; align-items: center; justify-content: center;
+        }
+        .scan-frame {
+            width: 65%; aspect-ratio: 1;
+            border: 2px solid rgba(255,255,255,0.6); border-radius: 12px;
+            position: relative; box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
+        }
+        .scan-frame .corner {
+            position: absolute; width: 20px; height: 20px;
+            border-color: #4caf50; border-style: solid; border-width: 0;
+        }
+        .scan-frame .corner.tl { top: -1px; left: -1px; border-top-width: 3px; border-left-width: 3px; border-top-left-radius: 10px; }
+        .scan-frame .corner.tr { top: -1px; right: -1px; border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 10px; }
+        .scan-frame .corner.bl { bottom: -1px; left: -1px; border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 10px; }
+        .scan-frame .corner.br { bottom: -1px; right: -1px; border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 10px; }
+        .scan-line {
+            position: absolute; top: 0; left: 5%; right: 5%; height: 2px;
+            background: linear-gradient(90deg, transparent, #4caf50, transparent);
+            animation: scanLine 2s ease-in-out infinite;
+        }
+        @keyframes scanLine { 0%, 100% { top: 10%; } 50% { top: 85%; } }
+        .scan-hint {
+            text-align: center; color: rgba(255,255,255,0.8);
+            font-size: 12px; padding: 8px;
+            position: absolute; bottom: 8px; left: 0; right: 0;
+        }
+
+        .scan-feedback {
+            padding: 10px 14px; font-size: 13px;
+            display: none; align-items: center; gap: 6px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .scan-feedback.success { display: flex; background: #e8f5e9; color: #2e7d32; }
+        .scan-feedback.success::before { content: '✅'; }
+        .scan-feedback.duplicate { display: flex; background: #fff3e0; color: #e65100; }
+        .scan-feedback.duplicate::before { content: '⚠️'; }
+        .scan-feedback .feedback-text { flex: 1; }
+        .scan-feedback .feedback-time { font-size: 11px; opacity: 0.7; }
+
+        .camera-error {
+            padding: 20px; text-align: center; color: #e53935;
+            font-size: 14px; display: none;
+        }
+        .camera-error.show { display: block; }
+
+        /* Current batch: items scanned for current customer */
+        .batch-section {
+            background: white; border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 16px; overflow: hidden;
+            display: none;
+        }
+        .batch-section.active { display: block; }
+
+        .batch-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; border-bottom: 1px solid #f0f0f0;
+        }
+        .batch-header h2 {
+            font-size: 14px; font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .batch-header h2::before { content: '📥'; }
+        .batch-count {
+            font-size: 12px; color: #1a73e8; background: #e3f2fd;
+            padding: 2px 10px; border-radius: 10px; font-weight: 600;
+        }
+        .batch-save-btn {
+            background: #1a73e8; color: white; border: none;
+            padding: 6px 14px; border-radius: 6px; font-size: 12px;
+            font-weight: 600; cursor: pointer;
+        }
+        .batch-save-btn:active { transform: scale(0.96); }
+
+        .batch-list { max-height: 240px; overflow-y: auto; }
+        .batch-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; border-bottom: 1px solid #f5f5f5;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .batch-item:last-child { border-bottom: none; }
+        .batch-item-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+        .batch-item-num {
+            width: 24px; height: 24px; border-radius: 50%;
+            background: #e3f2fd; color: #1a73e8;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; flex-shrink: 0;
+        }
+        .batch-item-code {
+            font-size: 14px; color: #333; word-break: break-all;
+        }
+        .batch-item-time {
+            font-size: 11px; color: #aaa; flex-shrink: 0; margin-left: 8px;
+        }
+        .batch-item-remove {
+            background: none; border: none; font-size: 14px; color: #ccc;
+            cursor: pointer; padding: 4px 8px; flex-shrink: 0;
+        }
+        .batch-item-remove:hover { color: #e53935; }
+
+        .batch-empty {
+            text-align: center; padding: 16px; color: #bbb; font-size: 13px;
+        }
+
+        /* Manual add */
+        .manual-add {
+            display: flex; gap: 8px; padding: 10px 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .manual-add input {
+            flex: 1; padding: 8px 10px; border: 1.5px solid #ddd;
+            border-radius: 6px; font-size: 14px;
+        }
+        .manual-add input:focus {
+            outline: none; border-color: #1a73e8;
+        }
+        .manual-add button {
+            background: #e3f2fd; color: #1a73e8; border: none;
+            padding: 8px 14px; border-radius: 6px; font-size: 13px;
+            font-weight: 500; cursor: pointer;
+        }
+
+        /* Records */
+        .records-section {
+            background: white; border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 16px; margin-bottom: 16px;
+        }
+        .records-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .records-header h2 {
+            font-size: 15px; font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .records-header h2::before { content: '📋'; }
+        .record-count {
+            font-size: 12px; color: #999; background: #f5f5f5;
+            padding: 3px 10px; border-radius: 10px;
+        }
+
+        /* Group by customer */
+        .customer-group {
+            margin-bottom: 12px; border: 1px solid #e0e0e0;
+            border-radius: 10px; overflow: hidden;
+        }
+        .customer-group-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; background: #e3f2fd;
+            cursor: pointer; user-select: none;
+        }
+        .customer-group-name {
+            font-size: 14px; font-weight: 600; color: #1a73e8;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .customer-group-name::before { content: '👤'; }
+        .customer-group-meta {
+            font-size: 11px; color: #666;
+        }
+        .customer-group-toggle {
+            font-size: 12px; color: #999;
+        }
+        .customer-group-body { }
+        .customer-group-body.collapsed { display: none; }
+
+        .record-item {
+            padding: 10px 14px; background: #fafafa;
+            border-bottom: 1px solid #f0f0f0; position: relative;
+        }
+        .record-item:last-child { border-bottom: none; }
+        .record-item .record-article {
+            font-size: 13px; color: #333; word-break: break-all;
+        }
+        .record-item .record-time { font-size: 11px; color: #aaa; margin-top: 2px; }
+        .record-item .delete-record {
+            position: absolute; top: 6px; right: 8px;
+            background: none; border: none; font-size: 13px; color: #ccc; cursor: pointer;
+        }
+        .record-item .delete-record:hover { color: #e53935; }
+
+        .empty-records { text-align: center; padding: 24px; color: #bbb; font-size: 14px; }
+        .export-btn {
+            background: none; border: 1px solid #1a73e8; color: #1a73e8;
+            padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 70px; left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: #333; color: white; padding: 10px 20px;
+            border-radius: 8px; font-size: 13px; z-index: 1000;
+            opacity: 0; transition: all 0.3s ease; pointer-events: none;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex; gap: 8px; margin-bottom: 12px;
+        }
+        .stat-card {
+            flex: 1; background: white; border-radius: 10px;
+            padding: 12px; text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .stat-card .stat-num {
+            font-size: 24px; font-weight: 700; color: #1a73e8;
+        }
+        .stat-card .stat-label {
+            font-size: 11px; color: #999; margin-top: 2px;
+        }
+
+        /* DingTalk Settings */
+        .dingtalk-section {
+            background: white; border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 16px; padding: 16px;
+        }
+        .dingtalk-section h2 {
+            font-size: 15px; font-weight: 600; margin-bottom: 12px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .dingtalk-section h2::before { content: '🔗'; }
+        .dingtalk-status {
+            font-size: 12px; padding: 3px 8px; border-radius: 10px;
+            font-weight: 500;
+        }
+        .dingtalk-status.connected { background: #e8f5e9; color: #2e7d32; }
+        .dingtalk-status.disconnected { background: #fce4ec; color: #e53935; }
+        .dingtalk-row {
+            display: flex; gap: 8px; margin-bottom: 10px; align-items: center;
+        }
+        .dingtalk-row label {
+            font-size: 12px; font-weight: 500; color: #666;
+            min-width: 80px; flex-shrink: 0;
+        }
+        .dingtalk-row input {
+            flex: 1; padding: 8px 10px; border: 1.5px solid #ddd;
+            border-radius: 6px; font-size: 13px;
+        }
+        .dingtalk-row input:focus {
+            outline: none; border-color: #1a73e8;
+        }
+        .dingtalk-hint {
+            font-size: 11px; color: #999; margin-top: 8px;
+            line-height: 1.6;
+        }
+        .dingtalk-toggle {
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; user-select: none;
+            padding: 4px 0; margin-bottom: 8px;
+        }
+        .dingtalk-toggle-arrow {
+            font-size: 12px; color: #999; transition: transform 0.2s;
+        }
+        .dingtalk-toggle-arrow.open { transform: rotate(180deg); }
+        .dingtalk-body { }
+        .dingtalk-body.collapsed { display: none; }
+        .dingtalk-test-btn {
+            background: #e3f2fd; color: #1a73e8; border: none;
+            padding: 8px 16px; border-radius: 6px; font-size: 13px;
+            font-weight: 500; cursor: pointer;
+        }
+        .dingtalk-test-btn:active { transform: scale(0.96); }
+        .sync-indicator {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 11px; padding: 2px 8px; border-radius: 10px;
+            margin-left: 8px;
+        }
+        .sync-indicator.ok { background: #e8f5e9; color: #2e7d32; }
+        .sync-indicator.fail { background: #fce4ec; color: #e53935; }
+        .sync-indicator.pending { background: #fff3e0; color: #e65100; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📦 扫码录入系统</h1>
+    </div>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="stat-num" id="statCustomers">0</div>
+                <div class="stat-label">客户数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num" id="statArticles">0</div>
+                <div class="stat-label">货号数</div>
+            </div>
+        </div>
+
+        <!-- DingTalk Connection -->
+        <div class="dingtalk-section">
+            <div class="dingtalk-toggle" onclick="toggleDingTalkSettings()">
+                <h2>钉钉AI表格连接 <span class="dingtalk-status disconnected" id="dingtalkStatus">未连接</span></h2>
+                <span class="dingtalk-toggle-arrow" id="dingtalkArrow">▼</span>
+            </div>
+            <div class="dingtalk-body" id="dingtalkBody">
+                <div class="dingtalk-row">
+                    <label>Webhook URL</label>
+                    <input type="text" id="dingtalkWebhook" placeholder="粘贴钉钉AI表格自动化Webhook地址" oninput="saveDingTalkConfig()">
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:10px">
+                    <button class="dingtalk-test-btn" onclick="testDingTalkConnection()">测试连接</button>
+                </div>
+                <div class="dingtalk-hint">
+                    <b>配置步骤：</b><br>
+                    1. 钉钉打开AI表格 → 顶部「自动化」→ 新建流程<br>
+                    2. 触发条件选「Webhook触发」<br>
+                    3. 配置入参：customerName(文本)、articleNo(文本)、time(文本)<br>
+                    4. 执行动作选「新增记录」→ 映射到表格字段<br>
+                    5. 保存后复制 Webhook URL 粘贴到上方<br>
+                    <br>
+                    ⚠️ 如遇跨域(CORS)问题，需将此页面部署到服务器或通过Nginx代理
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 1: Customer -->
+        <div class="customer-section">
+            <h2>选择客户</h2>
+            <div class="customer-row">
+                <input type="text" id="customerName" placeholder="输入客户名称 (Customer Name)" autocomplete="off">
+                <button class="customer-btn start" id="startBatchBtn" onclick="startBatch()">开始录入</button>
+                <button class="customer-btn switch" id="switchBatchBtn" onclick="switchCustomer()">换客户</button>
+            </div>
+            <div class="active-customer" id="activeCustomer">
+                当前客户：<strong id="activeCustomerName"></strong>
+                <span style="margin-left:auto;color:#999" id="activeCustomerCount"></span>
+            </div>
+        </div>
+
+        <!-- Scanner -->
+        <div class="scanner-section" id="scannerSection">
+            <div class="scanner-header">
+                <h2>连续扫码</h2>
+                <button class="scan-btn" id="scanToggleBtn" onclick="toggleScanner()">开始扫码</button>
+            </div>
+            <div class="scanner-viewport" id="scannerViewport">
+                <video id="scannerVideo" autoplay playsinline muted></video>
+                <canvas id="scannerCanvas"></canvas>
+                <div class="scan-overlay">
+                    <div class="scan-frame">
+                        <div class="corner tl"></div><div class="corner tr"></div>
+                        <div class="corner bl"></div><div class="corner br"></div>
+                        <div class="scan-line"></div>
+                    </div>
+                </div>
+                <div class="scan-hint">将二维码对准框内，自动连续识别</div>
+            </div>
+            <div class="scan-feedback" id="scanFeedback">
+                <span class="feedback-text" id="feedbackText"></span>
+                <span class="feedback-time" id="feedbackTime"></span>
+            </div>
+            <div class="camera-error" id="cameraError">
+                ⚠️ 无法访问摄像头，请检查浏览器权限设置<br>
+                <small>iPhone请用Safari打开，Android请用Chrome打开</small>
+            </div>
+        </div>
+
+        <!-- Batch: current customer's items -->
+        <div class="batch-section" id="batchSection">
+            <div class="batch-header">
+                <h2>当前扫码列表</h2>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span class="batch-count" id="batchCount">0 条</span>
+                    <button class="batch-save-btn" onclick="saveBatch()">保存并录入</button>
+                </div>
+            </div>
+            <div class="batch-list" id="batchList">
+                <div class="batch-empty">扫码后自动添加到这里</div>
+            </div>
+            <div class="manual-add">
+                <input type="text" id="manualArticleNo" placeholder="手动输入货号 (Article No)">
+                <button onclick="manualAddArticle()">添加</button>
+            </div>
+        </div>
+
+        <!-- Records -->
+        <div class="records-section">
+            <div class="records-header">
+                <h2>录入记录</h2>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span class="record-count" id="recordCount">0 条</span>
+                    <button class="export-btn" onclick="exportCSV()">导出CSV</button>
+                </div>
+            </div>
+            <div id="recordsList">
+                <div class="empty-records">暂无录入记录</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ===== State =====
+        let videoStream = null;
+        let scanning = false;
+        let animFrameId = null;
+
+        let currentCustomer = '';           // 当前客户名
+        let batchItems = [];                 // 当前客户待录入的货号列表
+        let batchCodeSet = new Set();        // 当前批次去重
+
+        // 持久化记录: [{ customerName, articleNo, time }]
+        let records = JSON.parse(localStorage.getItem('scanRecords') || '[]');
+
+        let lastScanTime = 0;
+        const SCAN_COOLDOWN = 2000;
+        let feedbackTimer = null;
+
+        // ===== DingTalk Config =====
+        let dingtalkWebhookUrl = localStorage.getItem('dingtalkWebhookUrl') || '';
+        let dingtalkConnected = false;
+
+        // ===== Init =====
+        document.addEventListener('DOMContentLoaded', () => {
+            renderRecords();
+            updateStats();
+            // Restore DingTalk config
+            if (dingtalkWebhookUrl) {
+                document.getElementById('dingtalkWebhook').value = dingtalkWebhookUrl;
+                updateDingTalkStatus(true);
+            }
+        });
+
+        // ===== Customer =====
+        function startBatch() {
+            const name = document.getElementById('customerName').value.trim();
+            if (!name) { showToast('请先输入客户名称'); return; }
+
+            currentCustomer = name;
+            batchItems = [];
+            batchCodeSet = new Set();
+
+            // UI
+            document.getElementById('customerName').disabled = true;
+            document.getElementById('startBatchBtn').style.display = 'none';
+            document.getElementById('switchBatchBtn').style.display = 'inline-block';
+            document.getElementById('activeCustomer').classList.add('show');
+            document.getElementById('activeCustomerName').textContent = name;
+            document.getElementById('scannerSection').classList.add('enabled');
+            document.getElementById('batchSection').classList.add('active');
+
+            renderBatch();
+            updateActiveCustomerCount();
+
+            showToast(`客户「${name}」已就绪，开始扫码吧！`);
+        }
+
+        function switchCustomer() {
+            // 如果有待保存的先提示
+            if (batchItems.length > 0) {
+                if (!confirm(`当前客户「${currentCustomer}」有 ${batchItems.length} 条未保存，确认切换客户？`)) return;
+            }
+
+            // 停止扫描
+            if (scanning) {
+                stopScanner();
+                document.getElementById('scanToggleBtn').textContent = '开始扫码';
+                document.getElementById('scanToggleBtn').classList.remove('stop');
+            }
+
+            currentCustomer = '';
+            batchItems = [];
+            batchCodeSet = new Set();
+
+            // UI
+            document.getElementById('customerName').value = '';
+            document.getElementById('customerName').disabled = false;
+            document.getElementById('customerName').focus();
+            document.getElementById('startBatchBtn').style.display = 'inline-block';
+            document.getElementById('switchBatchBtn').style.display = 'none';
+            document.getElementById('activeCustomer').classList.remove('show');
+            document.getElementById('scannerSection').classList.remove('enabled');
+            document.getElementById('batchSection').classList.remove('active');
+
+            renderBatch();
+        }
+
+        function updateActiveCustomerCount() {
+            const el = document.getElementById('activeCustomerCount');
+            if (batchItems.length > 0) {
+                el.textContent = `已扫 ${batchItems.length} 个货号`;
+            } else {
+                el.textContent = '';
+            }
+        }
+
+        // ===== Scanner =====
+        async function toggleScanner() {
+            if (!currentCustomer) { showToast('请先选择客户'); return; }
+            const btn = document.getElementById('scanToggleBtn');
+            if (scanning) {
+                stopScanner();
+                btn.textContent = '开始扫码';
+                btn.classList.remove('stop');
+            } else {
+                const ok = await startScanner();
+                if (ok) {
+                    btn.textContent = '停止扫码';
+                    btn.classList.add('stop');
+                }
+            }
+        }
+
+        async function startScanner() {
+            const video = document.getElementById('scannerVideo');
+            const viewport = document.getElementById('scannerViewport');
+            const errorEl = document.getElementById('cameraError');
+            errorEl.classList.remove('show');
+
+            const constraints = [
+                { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+                { video: { facingMode: 'environment' } },
+                { video: true }
+            ];
+
+            for (const c of constraints) {
+                try { videoStream = await navigator.mediaDevices.getUserMedia(c); break; }
+                catch (e) { continue; }
+            }
+
+            if (!videoStream) {
+                errorEl.classList.add('show');
+                showToast('无法启动摄像头');
+                return false;
+            }
+
+            video.srcObject = videoStream;
+            await video.play();
+            viewport.classList.add('active');
+            scanning = true;
+
+            await new Promise(resolve => {
+                const check = () => { video.videoWidth > 0 ? resolve() : requestAnimationFrame(check); };
+                check();
+            });
+
+            scanLoop();
+            return true;
+        }
+
+        function stopScanner() {
+            scanning = false;
+            if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+            if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+            document.getElementById('scannerVideo').srcObject = null;
+            document.getElementById('scannerViewport').classList.remove('active');
+        }
+
+        function scanLoop() {
+            if (!scanning) return;
+            const video = document.getElementById('scannerVideo');
+            const canvas = document.getElementById('scannerCanvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                const vw = video.videoWidth, vh = video.videoHeight;
+                canvas.width = vw; canvas.height = vh;
+                ctx.drawImage(video, 0, 0, vw, vh);
+                const imageData = ctx.getImageData(0, 0, vw, vh);
+                const code = jsQR(imageData.data, vw, vh, { inversionAttempts: 'dontInvert' });
+                if (code && code.data) handleScanResult(code.data);
+            }
+            animFrameId = requestAnimationFrame(scanLoop);
+        }
+
+        function handleScanResult(decodedText) {
+            const now = Date.now();
+
+            // 去重：当前批次 + 全局已录入
+            if (batchCodeSet.has(decodedText) || isGloballyDuplicate(decodedText)) {
+                if (now - lastScanTime > SCAN_COOLDOWN) {
+                    showFeedback('duplicate', `重复码：${truncate(decodedText, 40)}`, '已跳过');
+                    lastScanTime = now;
+                    if (navigator.vibrate) navigator.vibrate(50);
+                }
+                return;
+            }
+
+            // 新码！自动加入当前客户批次
+            batchCodeSet.add(decodedText);
+            lastScanTime = now;
+
+            const item = {
+                id: Date.now(),
+                articleNo: decodedText,
+                time: new Date().toLocaleTimeString('zh-CN')
+            };
+            batchItems.push(item);
+
+            showFeedback('success', `扫码成功：${truncate(decodedText, 40)}`, `第 ${batchItems.length} 个`);
+            if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+
+            renderBatch();
+            updateActiveCustomerCount();
+        }
+
+        function isGloballyDuplicate(code) {
+            return records.some(r => r.articleNo === code && r.customerName === currentCustomer);
+        }
+
+        function showFeedback(type, text, time) {
+            const el = document.getElementById('scanFeedback');
+            document.getElementById('feedbackText').textContent = text;
+            document.getElementById('feedbackTime').textContent = time;
+            el.className = 'scan-feedback ' + type;
+            if (feedbackTimer) clearTimeout(feedbackTimer);
+            feedbackTimer = setTimeout(() => { el.className = 'scan-feedback'; }, 3000);
+        }
+
+        // ===== Batch =====
+        function renderBatch() {
+            const listEl = document.getElementById('batchList');
+            const countEl = document.getElementById('batchCount');
+            countEl.textContent = batchItems.length + ' 条';
+
+            if (batchItems.length === 0) {
+                listEl.innerHTML = '<div class="batch-empty">扫码后自动添加到这里</div>';
+                return;
+            }
+
+            listEl.innerHTML = batchItems.map((item, idx) => `
+                <div class="batch-item">
+                    <div class="batch-item-left">
+                        <div class="batch-item-num">${idx + 1}</div>
+                        <div class="batch-item-code">${escapeHtml(truncate(item.articleNo, 50))}</div>
+                    </div>
+                    <span class="batch-item-time">${item.time}</span>
+                    <button class="batch-item-remove" onclick="removeBatchItem(${item.id})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function removeBatchItem(id) {
+            const item = batchItems.find(i => i.id === id);
+            if (item) {
+                batchCodeSet.delete(item.articleNo);
+                batchItems = batchItems.filter(i => i.id !== id);
+                renderBatch();
+                updateActiveCustomerCount();
+            }
+        }
+
+        function manualAddArticle() {
+            if (!currentCustomer) { showToast('请先选择客户'); return; }
+            const input = document.getElementById('manualArticleNo');
+            const val = input.value.trim();
+            if (!val) return;
+
+            if (batchCodeSet.has(val) || isGloballyDuplicate(val)) {
+                showToast('该货号已存在，不可重复添加');
+                return;
+            }
+
+            batchCodeSet.add(val);
+            batchItems.push({
+                id: Date.now(),
+                articleNo: val,
+                time: new Date().toLocaleTimeString('zh-CN')
+            });
+
+            input.value = '';
+            renderBatch();
+            updateActiveCustomerCount();
+            showToast('已添加');
+        }
+
+        async function saveBatch() {
+            if (!currentCustomer || batchItems.length === 0) {
+                showToast('没有可保存的内容');
+                return;
+            }
+
+            const now = new Date().toLocaleString('zh-CN');
+            const customerRecords = batchItems.map(item => ({
+                id: item.id,
+                customerName: currentCustomer,
+                articleNo: item.articleNo,
+                time: now
+            }));
+
+            records = customerRecords.concat(records);
+            localStorage.setItem('scanRecords', JSON.stringify(records));
+
+            const count = batchItems.length;
+
+            // Sync to DingTalk if connected
+            if (dingtalkWebhookUrl) {
+                let syncOk = 0;
+                let syncFail = 0;
+                for (const record of customerRecords) {
+                    try {
+                        const resp = await fetch(dingtalkWebhookUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                customerName: record.customerName,
+                                articleNo: record.articleNo,
+                                time: record.time
+                            })
+                        });
+                        if (resp.ok) syncOk++;
+                        else syncFail++;
+                    } catch (e) {
+                        syncFail++;
+                        console.warn('DingTalk sync error:', e);
+                    }
+                }
+                if (syncFail === 0) {
+                    showToast(`✅ 录入 ${count} 条，已同步到钉钉`);
+                } else {
+                    showToast(`⚠️ 录入 ${count} 条，钉钉同步 ${syncOk} 成功 ${syncFail} 失败`);
+                }
+            } else {
+                showToast(`✅ 已为客户「${currentCustomer}」录入 ${count} 条货号`);
+            }
+
+            batchItems = [];
+            batchCodeSet = new Set();
+            renderBatch();
+            updateActiveCustomerCount();
+            renderRecords();
+            updateStats();
+        }
+
+        // ===== Records =====
+        function renderRecords() {
+            const container = document.getElementById('recordsList');
+            const countEl = document.getElementById('recordCount');
+            countEl.textContent = records.length + ' 条';
+
+            if (records.length === 0) {
+                container.innerHTML = '<div class="empty-records">暂无录入记录</div>';
+                return;
+            }
+
+            // Group by customer
+            const groups = {};
+            records.forEach(r => {
+                if (!groups[r.customerName]) groups[r.customerName] = [];
+                groups[r.customerName].push(r);
+            });
+
+            let html = '';
+            for (const [customer, items] of Object.entries(groups)) {
+                html += `
+                    <div class="customer-group">
+                        <div class="customer-group-header" onclick="toggleGroup(this)">
+                            <div class="customer-group-name">${escapeHtml(customer)}</div>
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <span class="customer-group-meta">${items.length} 个货号</span>
+                                <span class="customer-group-toggle">▼</span>
+                            </div>
+                        </div>
+                        <div class="customer-group-body">
+                            ${items.map(r => `
+                                <div class="record-item">
+                                    <button class="delete-record" onclick="deleteRecord(${r.id})">🗑</button>
+                                    <div class="record-article">${escapeHtml(r.articleNo)}</div>
+                                    <div class="record-time">${r.time}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        function toggleGroup(header) {
+            const body = header.nextElementSibling;
+            const toggle = header.querySelector('.customer-group-toggle');
+            body.classList.toggle('collapsed');
+            toggle.textContent = body.classList.contains('collapsed') ? '▶' : '▼';
+        }
+
+        function deleteRecord(id) {
+            if (!confirm('确定删除这条记录？')) return;
+            records = records.filter(r => r.id !== id);
+            localStorage.setItem('scanRecords', JSON.stringify(records));
+            renderRecords();
+            updateStats();
+        }
+
+        function updateStats() {
+            const customers = new Set(records.map(r => r.customerName));
+            document.getElementById('statCustomers').textContent = customers.size;
+            document.getElementById('statArticles').textContent = records.length;
+        }
+
+        function exportCSV() {
+            if (records.length === 0) { showToast('没有可导出的记录'); return; }
+            const BOM = '\uFEFF';
+            const header = 'Customer Name,Article No,录入时间';
+            const rows = records.map(r =>
+                `"${r.customerName}","${r.articleNo}","${r.time}"`
+            );
+            const csv = BOM + header + '\n' + rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `扫码录入_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('导出成功！');
+        }
+
+        // ===== DingTalk Functions =====
+        function toggleDingTalkSettings() {
+            const body = document.getElementById('dingtalkBody');
+            const arrow = document.getElementById('dingtalkArrow');
+            body.classList.toggle('collapsed');
+            arrow.classList.toggle('open');
+        }
+
+        function saveDingTalkConfig() {
+            const url = document.getElementById('dingtalkWebhook').value.trim();
+            dingtalkWebhookUrl = url;
+            localStorage.setItem('dingtalkWebhookUrl', url);
+            updateDingTalkStatus(!!url);
+        }
+
+        function updateDingTalkStatus(connected) {
+            dingtalkConnected = connected;
+            const statusEl = document.getElementById('dingtalkStatus');
+            if (connected) {
+                statusEl.textContent = '已配置';
+                statusEl.className = 'dingtalk-status connected';
+            } else {
+                statusEl.textContent = '未连接';
+                statusEl.className = 'dingtalk-status disconnected';
+            }
+        }
+
+        async function testDingTalkConnection() {
+            if (!dingtalkWebhookUrl) {
+                showToast('请先填写Webhook URL');
+                return;
+            }
+            showToast('正在测试连接...');
+            try {
+                const resp = await fetch(dingtalkWebhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customerName: '测试客户',
+                        articleNo: 'TEST-001',
+                        time: new Date().toLocaleString('zh-CN')
+                    })
+                });
+                if (resp.ok) {
+                    updateDingTalkStatus(true);
+                    showToast('✅ 连接成功！钉钉AI表格已收到测试数据');
+                } else {
+                    const text = await resp.text();
+                    showToast(`❌ 连接失败 (${resp.status})，请检查Webhook URL`);
+                    console.warn('DingTalk test error:', resp.status, text);
+                }
+            } catch (e) {
+                showToast('❌ 连接失败，可能是跨域(CORS)限制');
+                console.warn('DingTalk test error:', e);
+            }
+        }
+
+        // ===== Utils =====
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function truncate(str, len) {
+            return str.length > len ? str.slice(0, len) + '…' : str;
+        }
+
+        // Manual add: Enter key
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('manualArticleNo').addEventListener('keydown', e => {
+                if (e.key === 'Enter') manualAddArticle();
+            });
+            document.getElementById('customerName').addEventListener('keydown', e => {
+                if (e.key === 'Enter') startBatch();
+            });
+        });
+    </script>
+</body>
+</html>
