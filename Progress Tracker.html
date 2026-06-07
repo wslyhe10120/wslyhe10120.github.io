@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>展会样品寄样进度管理</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --primary: #4F46E5; --primary-light: #818CF8; --primary-bg: #EEF2FF;
+    --success: #10B981; --success-bg: #ECFDF5;
+    --warning: #F59E0B; --warning-bg: #FFFBEB;
+    --danger: #EF4444; --danger-bg: #FEF2F2;
+    --info: #3B82F6; --info-bg: #EFF6FF;
+    --gray-50: #F9FAFB; --gray-100: #F3F4F6; --gray-200: #E5E7EB;
+    --gray-300: #D1D5DB; --gray-400: #9CA3AF; --gray-500: #6B7280;
+    --gray-600: #4B5563; --gray-700: #374151; --gray-800: #1F2937;
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    --radius: 12px; --radius-sm: 8px; --radius-full: 9999px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh; color: var(--gray-800);
+  }
+  .header {
+    background: rgba(255,255,255,0.97); backdrop-filter: blur(20px);
+    padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+    box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 100; gap: 12px;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-logo {
+    width: 38px; height: 38px; background: linear-gradient(135deg, #4F46E5, #7C3AED);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 18px;
+  }
+  .header-title { font-size: 16px; font-weight: 700; color: var(--gray-900); }
+  .header-subtitle { font-size: 11px; color: var(--gray-400); }
+  .header-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 14px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    border: none; transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #4F46E5, #7C3AED);
+    color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.35);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,0.45); }
+  .btn-white { background: white; color: var(--gray-700); border: 1px solid var(--gray-200); }
+  .btn-white:hover { background: var(--gray-50); border-color: var(--gray-300); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { background: #059669; }
+  .btn-outline { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+  .btn-outline:hover { background: var(--primary-bg); }
+  .btn-warning { background: var(--warning); color: white; }
+  .btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 6px; }
+
+  .container { max-width: 1320px; margin: 0 auto; padding: 20px 16px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+  .stat-card {
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+    border-radius: var(--radius); padding: 16px; text-align: center;
+    box-shadow: var(--shadow); transition: all 0.2s; cursor: pointer;
+    border: 2px solid transparent;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card.active { border-color: var(--primary); box-shadow: 0 4px 12px rgba(79,70,229,0.2); }
+  .stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin: 0 auto 8px; }
+  .stat-value { font-size: 26px; font-weight: 800; line-height: 1; }
+  .stat-label { font-size: 11px; color: var(--gray-500); margin-top: 3px; font-weight: 500; }
+
+  .main-panel { background: rgba(255,255,255,0.97); backdrop-filter: blur(10px); border-radius: var(--radius); box-shadow: var(--shadow-lg); overflow: hidden; }
+
+  .toolbar { padding: 14px 18px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--gray-100); flex-wrap: wrap; }
+  .search-box { flex: 1; min-width: 180px; position: relative; }
+  .search-box input {
+    width: 100%; padding: 8px 12px 8px 34px; border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm); font-size: 13px; outline: none; background: var(--gray-50); transition: all 0.2s;
+  }
+  .search-box input:focus { border-color: var(--primary); background: white; }
+  .search-box::before { content: '🔍'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
+  .filter-select { padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; outline: none; background: var(--gray-50); cursor: pointer; min-width: 100px; }
+  .filter-select:focus { border-color: var(--primary); }
+
+  .table-wrapper { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--gray-50); }
+  th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; border-bottom: 1px solid var(--gray-200); }
+  td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+  tr:hover td { background: var(--gray-50); }
+
+  .customer-cell { display: flex; align-items: center; gap: 8px; }
+  .customer-avatar { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: white; flex-shrink: 0; }
+  .customer-name { font-weight: 600; color: var(--gray-800); font-size: 13px; }
+  .customer-contact { font-size: 10px; color: var(--gray-400); }
+
+  .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 600; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status-pending { background: var(--gray-100); color: var(--gray-600); } .status-pending .status-dot { background: var(--gray-400); }
+  .status-sent { background: var(--info-bg); color: var(--info); } .status-sent .status-dot { background: var(--info); }
+  .status-transit { background: var(--warning-bg); color: var(--warning); } .status-transit .status-dot { background: var(--warning); animation: pulse 1.5s infinite; }
+  .status-received { background: var(--success-bg); color: var(--success); } .status-received .status-dot { background: var(--success); }
+  .status-feedback { background: var(--primary-bg); color: var(--primary); } .status-feedback .status-dot { background: var(--primary); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* 物流行内提示 */
+  .tracking-inline { margin-top: 3px; font-size: 10px; line-height: 1.4; }
+  .tracking-inline .track-latest { color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; display: inline-block; vertical-align: middle; }
+  .tracking-inline .track-time { color: var(--gray-300); margin-left: 2px; }
+  .tracking-inline .track-refresh { cursor: pointer; color: var(--primary); font-size: 11px; margin-left: 3px; }
+  .tracking-inline .track-refresh:hover { color: var(--primary-light); }
+  .tracking-inline .track-refresh.loading { animation: spin 1s linear infinite; }
+  @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+  .tracking-inline .track-suggest { color: var(--success); font-weight: 600; margin-left: 4px; cursor: pointer; }
+  .tracking-inline .track-suggest:hover { text-decoration: underline; }
+
+  .action-btns { display: flex; gap: 2px; }
+  .action-btn { width: 28px; height: 28px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; background: transparent; transition: all 0.15s; }
+  .action-btn:hover { background: var(--gray-100); }
+  .action-btn.next:hover { background: var(--success-bg); }
+
+  .pagination { padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--gray-100); font-size: 12px; color: var(--gray-500); }
+  .page-btns { display: flex; gap: 3px; }
+  .page-btn { padding: 4px 9px; border-radius: 6px; border: 1px solid var(--gray-200); background: white; cursor: pointer; font-size: 11px; transition: all 0.2s; }
+  .page-btn:hover, .page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: white; border-radius: var(--radius); box-shadow: var(--shadow-lg); width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; animation: modalIn 0.2s ease; }
+  .modal-lg { max-width: 800px; }
+  @keyframes modalIn { from{opacity:0;transform:scale(0.95) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }
+  .modal-header { padding: 18px 22px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h3 { font-size: 15px; font-weight: 700; }
+  .modal-close { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .modal-close:hover { background: var(--gray-100); }
+  .modal-body { padding: 18px 22px; }
+  .modal-footer { padding: 14px 22px; border-top: 1px solid var(--gray-100); display: flex; justify-content: flex-end; gap: 8px; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--gray-600); }
+  .form-label .required { color: var(--danger); }
+  .form-input, .form-select, .form-textarea { padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; outline: none; transition: border-color 0.2s; font-family: inherit; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+  .form-textarea { resize: vertical; min-height: 56px; }
+
+  /* Import */
+  .import-zone { border: 2px dashed var(--gray-300); border-radius: var(--radius); padding: 36px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--gray-50); }
+  .import-zone:hover, .import-zone.dragover { border-color: var(--primary); background: var(--primary-bg); }
+  .import-zone-icon { font-size: 40px; margin-bottom: 10px; }
+  .import-zone-text { font-size: 14px; color: var(--gray-600); font-weight: 500; }
+  .import-zone-hint { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+  .import-steps { display: flex; gap: 0; margin: 18px 0; }
+  .import-step { flex: 1; text-align: center; padding: 10px 8px; background: var(--gray-50); border: 1px solid var(--gray-200); font-size: 11px; color: var(--gray-500); }
+  .import-step:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .import-step:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  .import-step.active { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+  .import-step .step-num { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; background: var(--gray-200); color: var(--gray-500); align-items: center; justify-content: center; font-size: 11px; font-weight: 700; margin-right: 4px; }
+  .import-step.active .step-num { background: var(--primary); color: white; }
+
+  .preview-table-wrap { max-height: 280px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); margin: 12px 0; }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .preview-table th { padding: 6px 8px; background: var(--gray-100); font-weight: 600; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 1; }
+  .preview-table td { padding: 5px 8px; border-bottom: 1px solid var(--gray-100); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preview-stats { display: flex; gap: 16px; padding: 10px 0; font-size: 12px; color: var(--gray-600); }
+  .preview-stats strong { color: var(--primary); }
+
+  .col-mapping-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--gray-100); }
+  .col-mapping-row:last-child { border-bottom: none; }
+  .col-mapping-src { flex: 0 0 140px; font-size: 12px; color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-mapping-arrow { color: var(--gray-300); }
+  .col-mapping-select { flex: 1; padding: 5px 8px; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 12px; outline: none; }
+  .col-mapping-select:focus { border-color: var(--primary); }
+
+  /* Detail & Timeline */
+  .detail-timeline { position: relative; padding-left: 24px; margin: 14px 0; }
+  .detail-timeline::before { content: ''; position: absolute; left: 7px; top: 4px; bottom: 4px; width: 2px; background: var(--gray-200); }
+  .timeline-item { position: relative; padding-bottom: 14px; }
+  .timeline-item:last-child { padding-bottom: 0; }
+  .timeline-dot { position: absolute; left: -20px; top: 4px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--gray-300); background: white; }
+  .timeline-item.completed .timeline-dot { background: var(--success); border-color: var(--success); }
+  .timeline-item.current .timeline-dot { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 0 4px rgba(79,70,229,0.2); }
+  .timeline-title { font-size: 12px; font-weight: 600; color: var(--gray-800); }
+  .timeline-time { font-size: 10px; color: var(--gray-400); margin-top: 2px; }
+  .detail-section { margin-bottom: 14px; }
+  .detail-section-title { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid var(--gray-100); }
+  .detail-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; }
+  .detail-row .label { color: var(--gray-500); }
+  .detail-row .value { font-weight: 600; color: var(--gray-800); text-align: right; max-width: 60%; word-break: break-all; }
+  .sample-items { display: flex; flex-wrap: wrap; gap: 5px; }
+  .sample-tag { padding: 3px 9px; border-radius: var(--radius-full); background: var(--primary-bg); color: var(--primary); font-size: 11px; font-weight: 500; }
+
+  /* 物流详情面板 */
+  .tracking-panel {
+    background: var(--gray-50); border-radius: var(--radius-sm);
+    border: 1px solid var(--gray-200); overflow: hidden; margin-top: 8px;
+  }
+  .tracking-panel-header {
+    padding: 10px 12px; background: white; border-bottom: 1px solid var(--gray-100);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .tracking-panel-header span { font-size: 12px; font-weight: 600; color: var(--gray-700); }
+  .tracking-timeline { padding: 12px 12px 12px 28px; max-height: 260px; overflow-y: auto; position: relative; }
+  .tracking-timeline::before { content: ''; position: absolute; left: 17px; top: 16px; bottom: 16px; width: 2px; background: var(--gray-200); }
+  .track-item { position: relative; padding-bottom: 12px; }
+  .track-item:last-child { padding-bottom: 0; }
+  .track-dot { position: absolute; left: -17px; top: 3px; width: 10px; height: 10px; border-radius: 50%; background: var(--gray-300); border: 2px solid white; }
+  .track-item:first-child .track-dot { background: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.2); }
+  .track-item:first-child .track-text { color: var(--gray-800); font-weight: 500; }
+  .track-text { font-size: 11px; color: var(--gray-500); line-height: 1.5; }
+  .track-time { font-size: 10px; color: var(--gray-300); margin-top: 1px; }
+  .tracking-loading { padding: 24px; text-align: center; font-size: 13px; color: var(--gray-400); }
+  .tracking-loading .spinner { display: inline-block; animation: spin 1s linear infinite; font-size: 18px; }
+  .tracking-error { padding: 12px; text-align: center; font-size: 12px; color: var(--gray-400); }
+  .tracking-iframe-wrap {
+    margin-top: 8px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+    overflow: hidden; background: white; position: relative;
+  }
+  .tracking-iframe-bar {
+    padding: 8px 12px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200);
+    display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .tracking-iframe-bar .bar-title { font-size: 12px; font-weight: 600; color: var(--gray-700); display: flex; align-items: center; gap: 4px; }
+  .tracking-iframe-bar .bar-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tracking-iframe-bar .bar-actions a, .tracking-iframe-bar .bar-actions button {
+    font-size: 11px; padding: 3px 8px; border-radius: 6px; text-decoration: none;
+    cursor: pointer; border: 1px solid var(--gray-200); background: white; color: var(--gray-600); transition: all 0.15s;
+  }
+  .tracking-iframe-bar .bar-actions a:hover, .tracking-iframe-bar .bar-actions button:hover { border-color: var(--primary); color: var(--primary); }
+  .tracking-iframe-frame {
+    width: 100%; height: 420px; border: none; display: block;
+  }
+  .tracking-iframe-fallback {
+    padding: 24px 16px; text-align: center;
+  }
+  .tracking-iframe-fallback .fallback-icon { font-size: 36px; margin-bottom: 8px; }
+  .tracking-iframe-fallback .fallback-text { font-size: 13px; color: var(--gray-500); margin-bottom: 12px; }
+  .tracking-iframe-fallback .fallback-links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .tracking-iframe-fallback .fallback-links a {
+    display: inline-flex; align-items: center; gap: 4px; padding: 8px 16px;
+    border-radius: var(--radius-sm); background: var(--primary); color: white;
+    text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.2s;
+  }
+  .tracking-iframe-fallback .fallback-links a:hover { background: var(--primary-light); }
+  .tracking-iframe-fallback .fallback-links a.secondary { background: white; color: var(--gray-700); border: 1px solid var(--gray-200); }
+  .tracking-iframe-fallback .fallback-links a.secondary:hover { border-color: var(--primary); color: var(--primary); }
+  .tracking-api-result {
+    margin-top: 8px; border: 1px solid rgba(79,70,229,0.2); border-radius: var(--radius-sm);
+    background: var(--primary-bg); overflow: hidden;
+  }
+  .tracking-api-result .api-header {
+    padding: 6px 12px; background: white; border-bottom: 1px solid rgba(79,70,229,0.1);
+    font-size: 11px; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 4px;
+  }
+  .tracking-api-result .api-timeline { padding: 8px 12px 8px 24px; max-height: 160px; overflow-y: auto; }
+  .tracking-suggest-box {
+    margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-sm);
+    background: var(--success-bg); border: 1px solid rgba(16,185,129,0.2);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .tracking-suggest-text { font-size: 12px; color: var(--gray-700); }
+  .tracking-suggest-text strong { color: var(--success); }
+
+  .empty-state { padding: 50px 20px; text-align: center; }
+  .empty-icon { font-size: 44px; margin-bottom: 10px; }
+  .empty-text { font-size: 13px; color: var(--gray-400); }
+  .empty-hint { font-size: 11px; color: var(--gray-300); margin-top: 4px; }
+
+  .toast { position: fixed; top: 80px; right: 20px; padding: 10px 18px; border-radius: var(--radius-sm); background: var(--gray-800); color: white; font-size: 12px; font-weight: 500; box-shadow: var(--shadow-lg); transform: translateX(120%); transition: transform 0.3s ease; z-index: 300; }
+  .toast.show { transform: translateX(0); }
+  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); }
+  .toast.warning { background: var(--warning); }
+
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    .form-grid { grid-template-columns: 1fr; }
+    .toolbar { flex-direction: column; }
+    .search-box { width: 100%; }
+    .header-subtitle { display: none; }
+    th, td { padding: 7px 8px; }
+    .header-actions { width: 100%; }
+  }
+  @media (max-width: 480px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-logo">📦</div>
+    <div>
+      <div class="header-title">展会样品寄样进度</div>
+      <div class="header-subtitle">福建宇邦纺织科技有限公司</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-white btn-sm" onclick="openImportModal()">📥 导入Excel</button>
+    <button class="btn btn-white btn-sm" onclick="downloadTemplate()">📋 下载模板</button>
+    <button class="btn btn-white btn-sm" onclick="batchTrackAll()">🚚 批量查物流</button>
+    <button class="btn btn-white btn-sm" onclick="exportData()">📤 导出</button>
+    <button class="btn btn-primary" onclick="openAddModal()">➕ 新增</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card active" onclick="filterByStatus('all')">
+      <div class="stat-icon" style="background:linear-gradient(135deg,#4F46E5,#7C3AED);color:white;">📋</div>
+      <div class="stat-value" id="statTotal">0</div>
+      <div class="stat-label">全部样品</div>
+    </div>
+    <div class="stat-card" onclick="filterByStatus('pending')">
+      <div class="stat-icon" style="background:var(--gray-100);color:var(--gray-500);">⏳</div>
+      <div class="stat-value" id="statPending">0</div>
+      <div class="stat-label">待寄出</div>
+    </div>
+    <div class="stat-card" onclick="filterByStatus('transit')">
+      <div class="stat-icon" style="background:var(--warning-bg);color:var(--warning);">🚚</div>
+      <div class="stat-value" id="statTransit">0</div>
+      <div class="stat-label">运输中</div>
+    </div>
+    <div class="stat-card" onclick="filterByStatus('received')">
+      <div class="stat-icon" style="background:var(--success-bg);color:var(--success);">✅</div>
+      <div class="stat-value" id="statReceived">0</div>
+      <div class="stat-label">已签收</div>
+    </div>
+    <div class="stat-card" onclick="filterByStatus('feedback')">
+      <div class="stat-icon" style="background:var(--primary-bg);color:var(--primary);">💬</div>
+      <div class="stat-value" id="statFeedback">0</div>
+      <div class="stat-label">已反馈</div>
+    </div>
+  </div>
+
+  <div class="main-panel">
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="搜索客户、货号、展会、快递单号..." oninput="renderTable()">
+      </div>
+      <select class="filter-select" id="statusFilter" onchange="renderTable()">
+        <option value="all">全部状态</option>
+        <option value="pending">待寄出</option><option value="sent">已寄出</option>
+        <option value="transit">运输中</option><option value="received">已签收</option>
+        <option value="feedback">已反馈</option>
+      </select>
+      <select class="filter-select" id="exhibitionFilter" onchange="renderTable()">
+        <option value="all">全部展会</option>
+      </select>
+      <select class="filter-select" id="sortFilter" onchange="renderTable()">
+        <option value="date_desc">最新优先</option>
+        <option value="date_asc">最早优先</option>
+        <option value="customer">按客户</option>
+      </select>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr>
+          <th>客户信息</th><th>展会</th><th>样品明细</th><th>快递/运单</th><th>状态</th><th>更新时间</th><th>操作</th>
+        </tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="formModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="formTitle">新增寄样记录</h3>
+      <button class="modal-close" onclick="closeModal('formModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">客户名称 <span class="required">*</span></label>
+          <input type="text" class="form-input" id="fCustomer" placeholder="如：ABC贸易">
+        </div>
+        <div class="form-group">
+          <label class="form-label">联系人</label>
+          <input type="text" class="form-input" id="fContact" placeholder="如：张经理">
+        </div>
+        <div class="form-group">
+          <label class="form-label">展会名称 <span class="required">*</span></label>
+          <input type="text" class="form-input" id="fExhibition" placeholder="如：2026上海intertextile">
+        </div>
+        <div class="form-group">
+          <label class="form-label">寄出日期</label>
+          <input type="date" class="form-input" id="fSendDate">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">样品明细 <span class="required">*</span></label>
+          <textarea class="form-textarea" id="fSamples" placeholder="每行一个：货号 品名 颜色 数量&#10;如：YB-2201 春亚纺 深蓝 3米"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">快递公司</label>
+          <select class="form-select" id="fCourier">
+            <option value="">自动识别或手动选择</option>
+            <option>顺丰</option><option>德邦</option><option>中通</option>
+            <option>圆通</option><option>申通</option><option>韵达</option>
+            <option>京东</option><option>EMS</option><option>极兔</option><option>其他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">快递单号</label>
+          <input type="text" class="form-input" id="fTrackingNo" placeholder="输入快递单号" oninput="autoDetectCourier()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">当前状态</label>
+          <select class="form-select" id="fStatus">
+            <option value="pending">待寄出</option><option value="sent">已寄出</option>
+            <option value="transit">运输中</option><option value="received">已签收</option>
+            <option value="feedback">已反馈</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">预计送达</label>
+          <input type="date" class="form-input" id="fEstDelivery">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">备注</label>
+          <textarea class="form-textarea" id="fNotes" placeholder="特殊要求、注意事项等"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-white" onclick="closeModal('formModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveRecord()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-header">
+      <h3>寄样详情</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-white" onclick="closeModal('detailModal')">关闭</button>
+      <button class="btn btn-outline" id="detailEditBtn">编辑</button>
+      <button class="btn btn-success" id="detailNextBtn">推进状态</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>📥 从Excel导入</h3>
+      <button class="modal-close" onclick="closeModal('importModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="import-steps">
+        <div class="import-step active" id="importStep1"><span class="step-num">1</span>上传文件</div>
+        <div class="import-step" id="importStep2"><span class="step-num">2</span>列映射</div>
+        <div class="import-step" id="importStep3"><span class="step-num">3</span>预览确认</div>
+      </div>
+      <div id="importContent1">
+        <div class="import-zone" id="importZone" onclick="document.getElementById('importFile').click()">
+          <div class="import-zone-icon">📊</div>
+          <div class="import-zone-text">点击或拖拽Excel文件到此处</div>
+          <div class="import-zone-hint">支持 .xlsx / .xls 格式</div>
+        </div>
+        <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
+        <div style="margin-top:12px;font-size:12px;color:var(--gray-400);text-align:center;">
+          还没有模板？<a href="javascript:downloadTemplate()" style="color:var(--primary);font-weight:500;">点击下载Excel模板</a>
+        </div>
+      </div>
+      <div id="importContent2" style="display:none;">
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:12px;">请确认Excel列与系统字段的对应关系：</p>
+        <div id="mappingRows"></div>
+      </div>
+      <div id="importContent3" style="display:none;">
+        <div class="preview-stats" id="previewStats"></div>
+        <div class="preview-table-wrap"><table class="preview-table" id="previewTable"></table></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-white" id="importBackBtn" style="display:none;" onclick="importGoBack()">上一步</button>
+      <button class="btn btn-white" onclick="closeModal('importModal')">取消</button>
+      <button class="btn btn-primary" id="importNextBtn" onclick="importGoNext()" disabled>下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Tracking Modal -->
+<div class="modal-overlay" id="trackingModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>🚚 批量物流追踪</h3>
+      <button class="modal-close" onclick="closeModal('trackingModal')">✕</button>
+    </div>
+    <div class="modal-body" id="trackingBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-white" onclick="closeModal('trackingModal')">关闭</button>
+      <button class="btn btn-primary" id="batchUpdateStatusBtn" onclick="batchUpdateFromTracking()" style="display:none;">一键更新状态</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'sample_tracking_data';
+const STATUS_MAP = {
+  pending:  { label: '待寄出', class: 'status-pending',  next: 'sent',     nextLabel: '已寄出' },
+  sent:     { label: '已寄出', class: 'status-sent',     next: 'transit',  nextLabel: '运输中' },
+  transit:  { label: '运输中', class: 'status-transit',  next: 'received', nextLabel: '已签收' },
+  received: { label: '已签收', class: 'status-received', next: 'feedback', nextLabel: '已反馈' },
+  feedback: { label: '已反馈', class: 'status-feedback', next: null,       nextLabel: null },
+};
+const AVATAR_COLORS = ['#4F46E5','#7C3AED','#EC4899','#F59E0B','#10B981','#3B82F6','#EF4444','#8B5CF6','#14B8A6','#F97316'];
+const PAGE_SIZE = 15;
+
+const SYSTEM_FIELDS = [
+  { key: 'customer',   label: '客户名称', required: true },
+  { key: 'contact',    label: '联系人',   required: false },
+  { key: 'exhibition', label: '展会名称', required: true },
+  { key: 'sendDate',   label: '寄出日期', required: false },
+  { key: 'samples',    label: '样品明细', required: true },
+  { key: 'courier',    label: '快递公司', required: false },
+  { key: 'trackingNo', label: '快递单号', required: false },
+  { key: 'notes',      label: '备注',     required: false },
+];
+
+// 快递单号识别
+const COURIER_PATTERNS = [
+  { name: '顺丰',  code: 'shunfeng', pattern: /^(SF\d{10,18}|0\d{11,14})$/i },
+  { name: '德邦',  code: 'debang',   pattern: /^(DPX|DPE|DBL)\d{8,14}$/i },
+  { name: '京东',  code: 'jd',       pattern: /^JD\d{10,18}$/i },
+  { name: 'EMS',   code: 'ems',      pattern: /^[A-Z]{2}\d{9}[A-Z]{2}$/i },
+  { name: '中通',  code: 'zhongtong', pattern: /^(7[0-9]{11,14}|46[0-9]{10,13}|78[0-9]{10,13})$/ },
+  { name: '圆通',  code: 'yuantong',  pattern: /^(YT[0-9]{10,16})$/ },
+  { name: '申通',  code: 'shentong',  pattern: /^(STO[0-9]{10,16}|22[0-9]{9,13}|77[0-9]{9,13})$/ },
+  { name: '韵达',  code: 'yunda',     pattern: /^(31[0-9]{10,13}|YD[0-9]{10,16})$/ },
+  { name: '极兔',  code: 'jtexpress', pattern: /^JT[0-9]{10,16}$/i },
+];
+
+// 快递100状态码 → 系统状态
+const KUAIDI100_STATE_MAP = {
+  '0': 'transit',   // 在途
+  '1': 'sent',      // 揽收
+  '2': null,        // 疑难
+  '3': 'received',  // 签收
+  '4': null,        // 退签
+  '5': 'transit',   // 派件
+  '6': null,        // 退回
+  '7': 'transit',   // 转投
+};
+
+let data = [];
+let currentFilter = 'all';
+let currentPage = 1;
+let editingId = null;
+let trackingResults = [];
+
+// Import state
+let importStep = 1, importRawData = null, importHeaders = [], importMapping = {}, importPreviewData = [];
+
+// ========== Data ==========
+function loadData() {
+  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { data = []; }
+}
+function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function genId() { return 'S' + Date.now().toString(36) + Math.random().toString(36).substr(2,4); }
+function getAvatarColor(n) { let h=0; for(let i=0;i<n.length;i++) h=n.charCodeAt(i)+((h<<5)-h); return AVATAR_COLORS[Math.abs(h)%AVATAR_COLORS.length]; }
+function formatDateTime(d) { if(!d) return '-'; const dt=new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`; }
+function showToast(msg, type='') { const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+type; setTimeout(()=>t.className='toast',2500); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// ========== Courier Detection ==========
+function detectCourier(trackingNo) {
+  if (!trackingNo) return { name: '', code: 'auto' };
+  const no = trackingNo.trim();
+  for (const c of COURIER_PATTERNS) { if (c.pattern.test(no)) return { name: c.name, code: c.code }; }
+  return { name: '', code: 'auto' };
+}
+function autoDetectCourier() {
+  const no = document.getElementById('fTrackingNo').value.trim();
+  const sel = document.getElementById('fCourier');
+  if (no && !sel.value) {
+    const d = detectCourier(no);
+    if (d.name) { for (const opt of sel.options) { if (opt.value === d.name) { sel.value = d.name; break; } } }
+  }
+}
+function getCourierInfo(item) {
+  if (item.courier) {
+    const found = COURIER_PATTERNS.find(c => c.name === item.courier);
+    return { name: item.courier, code: found ? found.code : 'auto' };
+  }
+  return detectCourier(item.trackingNo);
+}
+
+// ========== 物流查询核心 ==========
+
+/**
+ * 方式1: 通过多个CORS代理调用快递100查询接口
+ * 返回 { traces: [{time, context}], state, message } 或 null
+ */
+async function queryTrackingViaProxy(trackingNo, courierCode) {
+  const proxies = [
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+    url => `https://thingproxy.freeboard.io/fetch/${url}`,
+    url => `https://cors.sh/${url}`,
+  ];
+  const apiUrl = `https://www.kuaidi100.com/query?type=${courierCode || 'auto'}&postid=${trackingNo}&temp=${Date.now()}`;
+  for (const proxyFn of proxies) {
+    try {
+      const resp = await fetch(proxyFn(apiUrl), {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!resp.ok) continue;
+      const text = await resp.text();
+      let json;
+      try { json = JSON.parse(text); } catch(e) { continue; }
+      if (json.data && json.data.length > 0) {
+        return {
+          traces: json.data.map(t => ({ time: t.ftime || t.time || '', context: t.context || '' })),
+          state: String(json.state || json.stateCode || ''),
+          message: json.message || '',
+        };
+      }
+      if (json.state === '2013' || json.returnCode === '400') return null;
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+/**
+ * 方式2: JSONP方式调用快递100接口
+ * 通过动态<script>标签加载，绕过CORS限制
+ */
+function queryTrackingViaJsonp(trackingNo, courierCode) {
+  return new Promise((resolve) => {
+    const cbName = 'kd100_cb_' + Date.now() + '_' + Math.floor(Math.random()*10000);
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => { cleanup(); resolve(null); }, 6000);
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(data) {
+      cleanup();
+      if (data && data.data && data.data.length > 0) {
+        resolve({
+          traces: data.data.map(t => ({ time: t.ftime || t.time || '', context: t.context || '' })),
+          state: String(data.state || data.stateCode || ''),
+          message: data.message || '',
+        });
+      } else {
+        resolve(null);
+      }
+    };
+    script.onerror = () => { cleanup(); resolve(null); };
+    script.src = `https://www.kuaidi100.com/query?type=${courierCode || 'auto'}&postid=${trackingNo}&temp=${Date.now()}&callback=${cbName}`;
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * 综合查询：先试JSONP，再试CORS代理
+ */
+async function queryTracking(trackingNo, courierCode) {
+  // 先试JSONP（不依赖第三方代理，直接与快递100通信）
+  const jsonpResult = await queryTrackingViaJsonp(trackingNo, courierCode);
+  if (jsonpResult) return jsonpResult;
+  // JSONP失败则试CORS代理
+  const proxyResult = await queryTrackingViaProxy(trackingNo, courierCode);
+  if (proxyResult) return proxyResult;
+  return null;
+}
+
+/**
+ * 获取快递100查询页面URL（iframe/新窗口用）
+ */
+function getKuaidi100Url(trackingNo) {
+  return `https://www.kuaidi100.com/chaxun?nu=${encodeURIComponent(trackingNo)}`;
+}
+function getKuaidi100MobileUrl(trackingNo) {
+  return `https://m.kuaidi100.com/result.jsp?nu=${encodeURIComponent(trackingNo)}`;
+}
+
+// ========== 查询单条物流并更新缓存 ==========
+async function fetchAndCacheTracking(id) {
+  const item = data.find(d => d.id === id);
+  if (!item || !item.trackingNo) return null;
+
+  const ci = getCourierInfo(item);
+  const result = await queryTracking(item.trackingNo, ci.code);
+
+  if (result) {
+    // 缓存到记录中
+    item.trackingCache = {
+      traces: result.traces,
+      state: result.state,
+      fetchedAt: new Date().toISOString(),
+    };
+    // 自动建议状态
+    const suggested = KUAIDI100_STATE_MAP[result.state];
+    if (suggested) item.trackingCache.suggestedStatus = suggested;
+    saveData();
+  } else {
+    item.trackingCache = {
+      traces: [],
+      state: '',
+      fetchedAt: new Date().toISOString(),
+      failed: true,
+    };
+    saveData();
+  }
+  return result;
+}
+
+// ========== 渲染物流行内提示 ==========
+function renderTrackingInline(item) {
+  if (!item.trackingNo) return '';
+
+  const cache = item.trackingCache;
+  const kd100Url = getKuaidi100Url(item.trackingNo);
+
+  // 有API缓存的显示最新动态
+  if (cache && !cache.failed && cache.traces && cache.traces.length > 0) {
+    const latest = cache.traces[0];
+    const suggested = cache.suggestedStatus;
+    const timeAgo = getTimeAgo(cache.fetchedAt);
+
+    let html = '<div class="tracking-inline">';
+    html += `<span class="track-latest" title="${latest.context}">📦 ${latest.context}</span>`;
+    html += `<span class="track-time">${timeAgo}</span>`;
+    if (suggested && suggested !== item.status) {
+      html += `<span class="track-suggest" onclick="applySuggestedStatus('${item.id}','${suggested}',event)" title="点击更新状态">→${STATUS_MAP[suggested].label}</span>`;
+    }
+    html += `<span class="track-refresh" onclick="refreshTracking('${item.id}',event)" title="刷新">🔄</span>`;
+    html += '</div>';
+    return html;
+  }
+
+  // 没有缓存：显示"查看物流"链接（点击打开详情看iframe）
+  return `<div class="tracking-inline">
+    <a href="javascript:void(0)" onclick="showDetail('${item.id}')" style="color:var(--primary);font-size:11px;text-decoration:none;font-weight:500;">📦 查看物流</a>
+    <a href="${kd100Url}" target="_blank" style="color:var(--gray-400);font-size:10px;text-decoration:none;margin-left:3px;" title="在新窗口打开快递100">↗</a>
+    <span class="track-refresh" onclick="refreshTracking('${item.id}',event)" title="API查询">🔄</span>
+  </div>`;
+}
+
+function getTimeAgo(isoStr) {
+  if (!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff/60000) + '分钟前';
+  if (diff < 86400000) return Math.floor(diff/3600000) + '小时前';
+  return Math.floor(diff/86400000) + '天前';
+}
+
+async function refreshTracking(id, event) {
+  if (event) { event.stopPropagation(); event.preventDefault(); }
+  const el = event ? event.target : null;
+  if (el) el.classList.add('loading');
+
+  await fetchAndCacheTracking(id);
+  renderTable();
+
+  if (el) el.classList.remove('loading');
+  showToast('物流已刷新', 'success');
+}
+
+function applySuggestedStatus(id, newStatus, event) {
+  if (event) { event.stopPropagation(); event.preventDefault(); }
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  item.statusHistory.push({ from: item.status, to: newStatus, time: new Date().toISOString() });
+  item.status = newStatus;
+  item.updatedAt = new Date().toISOString();
+  if (item.trackingCache) item.trackingCache.suggestedStatus = undefined;
+  saveData(); renderAll();
+  showToast(`已更新为「${STATUS_MAP[newStatus].label}」`, 'success');
+}
+
+// ========== Detail ==========
+function showDetail(id) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  const s = STATUS_MAP[item.status];
+  const sampleLines = item.samples.split('\n').filter(l => l.trim());
+
+  const allStatuses = ['pending','sent','transit','received','feedback'];
+  const currentIdx = allStatuses.indexOf(item.status);
+  let timelineHTML = '<div class="detail-timeline">';
+  allStatuses.forEach((st, i) => {
+    const histItem = item.statusHistory?.find(h => h.to === st);
+    const cls = i===currentIdx ? 'current' : (i<currentIdx ? 'completed' : '');
+    timelineHTML += `<div class="timeline-item ${cls}"><div class="timeline-dot"></div><div class="timeline-title">${STATUS_MAP[st].label}</div><div class="timeline-time">${histItem ? formatDateTime(histItem.time) : (i<currentIdx?'已完成':'')}</div></div>`;
+  });
+  timelineHTML += '</div>';
+
+  // 物流面板 - 使用iframe嵌入快递100查询页面
+  let trackingSectionHTML = '';
+  if (item.trackingNo) {
+    const ci = getCourierInfo(item);
+    const kd100Url = getKuaidi100Url(item.trackingNo);
+    const kd100MobileUrl = getKuaidi100MobileUrl(item.trackingNo);
+    const sfUrl = `https://www.sf-express.com/sf-service-owf-web/service/rate/rateUtil/query?trackingNo=${encodeURIComponent(item.trackingNo)}`;
+    trackingSectionHTML = `
+      <div class="detail-section">
+        <div class="detail-section-title">🚚 物流追踪</div>
+        <div class="detail-row"><span class="label">快递公司</span><span class="value">${ci.name || '自动识别'}</span></div>
+        <div class="detail-row"><span class="label">快递单号</span><span class="value" style="cursor:pointer;color:var(--primary);" onclick="copyText('${item.trackingNo}')">${item.trackingNo} 📋</span></div>
+        <div id="detailTrackingPanel" class="tracking-iframe-wrap">
+          <div class="tracking-iframe-bar">
+            <span class="bar-title">📦 实时物流</span>
+            <div class="bar-actions">
+              <button onclick="switchIframeSrc('${kd100MobileUrl}')" title="切换到手机版">📱</button>
+              <button onclick="switchIframeSrc('${kd100Url}')" title="切换到桌面版">🖥</button>
+              <button onclick="retryApiQuery('${item.id}')" title="API接口查询">🔄 API查询</button>
+              <a href="${kd100Url}" target="_blank" title="在新窗口打开快递100">🔗 新窗口</a>
+            </div>
+          </div>
+          <iframe id="trackingIframe" class="tracking-iframe-frame" src="${kd100MobileUrl}" 
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                  onload="onIframeLoaded()" onerror="onIframeError()"></iframe>
+          <div id="iframeFallback" class="tracking-iframe-fallback" style="display:none;">
+            <div class="fallback-icon">🚚</div>
+            <div class="fallback-text">内嵌页面加载受限，请点击下方按钮查询物流</div>
+            <div class="fallback-links">
+              <a href="${kd100Url}" target="_blank">📦 快递100查询</a>
+              ${ci.code === 'shunfeng' ? `<a href="${sfUrl}" target="_blank" class="secondary">🟢 顺丰官网</a>` : ''}
+              <a href="${kd100MobileUrl}" target="_blank" class="secondary">📱 手机版查询</a>
+            </div>
+          </div>
+        </div>
+        <div id="apiTrackingResult" style="display:none;"></div>
+      </div>`;
+  }
+
+  document.getElementById('detailBody').innerHTML = `
+    <div class="detail-section"><div class="detail-section-title">📦 状态进度</div>${timelineHTML}</div>
+    <div class="detail-section"><div class="detail-section-title">👤 客户信息</div>
+      <div class="detail-row"><span class="label">客户名称</span><span class="value">${item.customer}</span></div>
+      ${item.contact ? `<div class="detail-row"><span class="label">联系人</span><span class="value">${item.contact}</span></div>` : ''}
+      <div class="detail-row"><span class="label">展会</span><span class="value">${item.exhibition}</span></div>
+    </div>
+    <div class="detail-section"><div class="detail-section-title">🧵 样品明细</div>
+      <div class="sample-items">${sampleLines.map(s => `<span class="sample-tag">${s}</span>`).join('')}</div>
+    </div>
+    ${trackingSectionHTML}
+    <div class="detail-section"><div class="detail-section-title">📅 日期</div>
+      <div class="detail-row"><span class="label">寄出日期</span><span class="value">${item.sendDate||'-'}</span></div>
+      <div class="detail-row"><span class="label">预计送达</span><span class="value">${item.estDelivery||'-'}</span></div>
+    </div>
+    ${item.notes ? `<div class="detail-section"><div class="detail-section-title">📝 备注</div><div style="font-size:12px;color:var(--gray-600);line-height:1.6;">${item.notes}</div></div>` : ''}
+  `;
+
+  document.getElementById('detailEditBtn').onclick = () => openEditModal(id);
+  document.getElementById('detailNextBtn').style.display = s.next ? '' : 'none';
+  document.getElementById('detailNextBtn').textContent = s.nextLabel ? `推进到「${s.nextLabel}」` : '';
+  document.getElementById('detailNextBtn').onclick = () => advanceStatus(id);
+  document.getElementById('detailModal').classList.add('show');
+
+  // 异步尝试API查询（iframe已直接展示，API查询作为增强）
+  if (item.trackingNo) {
+    loadDetailTracking(id);
+  }
+}
+
+// iframe加载事件
+let iframeLoadTimer = null;
+function onIframeLoaded() {
+  // iframe触发了onload，说明页面有响应（但可能被X-Frame-Options拦截显示空白）
+  clearTimeout(iframeLoadTimer);
+  iframeLoadTimer = setTimeout(() => {
+    // 延迟检查：如果iframe看起来空白，显示兜底
+    const iframe = document.getElementById('trackingIframe');
+    const fallback = document.getElementById('iframeFallback');
+    if (iframe && fallback) {
+      try {
+        // 尝试访问iframe内容，如果跨域会抛异常（说明页面确实加载了）
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        // 如果能访问到且内容很少，可能是空白页
+        if (doc && doc.body && doc.body.innerHTML.length < 50) {
+          iframe.style.display = 'none';
+          fallback.style.display = '';
+        }
+      } catch(e) {
+        // 跨域异常 = 页面确实加载了，iframe显示正常，不需要兜底
+      }
+    }
+  }, 2000);
+}
+function onIframeError() {
+  const iframe = document.getElementById('trackingIframe');
+  const fallback = document.getElementById('iframeFallback');
+  if (iframe) iframe.style.display = 'none';
+  if (fallback) fallback.style.display = '';
+}
+
+// 切换iframe源
+function switchIframeSrc(url) {
+  const iframe = document.getElementById('trackingIframe');
+  const fallback = document.getElementById('iframeFallback');
+  if (iframe) { iframe.style.display = ''; iframe.src = url; }
+  if (fallback) fallback.style.display = 'none';
+}
+
+// API查询按钮
+async function retryApiQuery(id) {
+  const item = data.find(d => d.id === id);
+  if (!item || !item.trackingNo) return;
+  const container = document.getElementById('apiTrackingResult');
+  if (!container) return;
+  container.style.display = '';
+  container.innerHTML = '<div class="tracking-loading"><span class="spinner">⏳</span> 正在通过API查询物流...</div>';
+
+  const ci = getCourierInfo(item);
+  const result = await queryTracking(item.trackingNo, ci.code);
+
+  if (result && result.traces.length > 0) {
+    item.trackingCache = { traces: result.traces, state: result.state, fetchedAt: new Date().toISOString() };
+    const suggested = KUAIDI100_STATE_MAP[result.state];
+    if (suggested) item.trackingCache.suggestedStatus = suggested;
+    saveData(); renderTable();
+
+    container.innerHTML = `
+      <div class="tracking-api-result">
+        <div class="api-header">✅ API查询成功（${result.traces.length}条记录）</div>
+        <div class="tracking-timeline api-timeline" style="padding:8px 12px 8px 24px;max-height:160px;overflow-y:auto;">
+          ${result.traces.map(t => `
+            <div class="track-item">
+              <div class="track-dot"></div>
+              <div class="track-text">${t.context}</div>
+              <div class="track-time">${t.time}</div>
+            </div>
+          `).join('')}
+        </div>
+        ${(() => {
+          const s = KUAIDI100_STATE_MAP[result.state];
+          if (s && s !== item.status) {
+            return `<div class="tracking-suggest-box">
+              <div class="tracking-suggest-text">💡 建议更新状态：<strong>${STATUS_MAP[item.status].label}</strong> → <strong>${STATUS_MAP[s].label}</strong></div>
+              <button class="btn btn-sm btn-success" onclick="applySuggestedFromDetail('${id}','${s}')">确认更新</button>
+            </div>`;
+          }
+          return '';
+        })()}
+      </div>`;
+  } else {
+    container.innerHTML = `
+      <div class="tracking-api-result">
+        <div class="api-header" style="color:var(--gray-400);">⚠️ API查询未获取到数据</div>
+        <div style="padding:10px 12px;font-size:11px;color:var(--gray-400);">
+          运单号可能尚未被快递系统收录，或网络限制导致API不可达。上方iframe页面可直接查看物流，或点击「🔗 新窗口」打开快递100查询。
+        </div>
+      </div>`;
+  }
+}
+
+async function loadDetailTracking(id) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+
+  // 尝试API查询（作为iframe的增强）
+  const ci = getCourierInfo(item);
+  const result = await queryTracking(item.trackingNo, ci.code);
+
+  if (result && result.traces.length > 0) {
+    item.trackingCache = { traces: result.traces, state: result.state, fetchedAt: new Date().toISOString() };
+    const suggested = KUAIDI100_STATE_MAP[result.state];
+    if (suggested) item.trackingCache.suggestedStatus = suggested;
+    saveData(); renderTable();
+
+    const container = document.getElementById('apiTrackingResult');
+    if (container) {
+      container.style.display = '';
+      container.innerHTML = `
+        <div class="tracking-api-result">
+          <div class="api-header">✅ API查询成功（${result.traces.length}条记录）</div>
+          <div class="tracking-timeline" style="padding:8px 12px 8px 24px;max-height:160px;overflow-y:auto;">
+            ${result.traces.map(t => `
+              <div class="track-item">
+                <div class="track-dot"></div>
+                <div class="track-text">${t.context}</div>
+                <div class="track-time">${t.time}</div>
+              </div>
+            `).join('')}
+          </div>
+          ${(() => {
+            const s = KUAIDI100_STATE_MAP[result.state];
+            if (s && s !== item.status) {
+              return `<div class="tracking-suggest-box">
+                <div class="tracking-suggest-text">💡 建议更新状态：<strong>${STATUS_MAP[item.status].label}</strong> → <strong>${STATUS_MAP[s].label}</strong></div>
+                <button class="btn btn-sm btn-success" onclick="applySuggestedFromDetail('${id}','${s}')">确认更新</button>
+              </div>`;
+            }
+            return '';
+          })()}
+        </div>`;
+    }
+  }
+}
+
+function refreshDetailTracking(id) {
+  retryApiQuery(id);
+}
+
+function applySuggestedFromDetail(id, newStatus) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  item.statusHistory.push({ from: item.status, to: newStatus, time: new Date().toISOString() });
+  item.status = newStatus;
+  item.updatedAt = new Date().toISOString();
+  if (item.trackingCache) item.trackingCache.suggestedStatus = undefined;
+  saveData(); renderAll();
+  showToast(`已更新为「${STATUS_MAP[newStatus].label}」`, 'success');
+  // 重新打开详情
+  showDetail(id);
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('已复制','success')).catch(() => {});
+}
+
+// ========== Add/Edit ==========
+function openAddModal() {
+  editingId = null;
+  document.getElementById('formTitle').textContent = '新增寄样记录';
+  ['fCustomer','fContact','fExhibition','fSamples','fTrackingNo','fNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fCourier').value = '';
+  document.getElementById('fStatus').value = 'pending';
+  document.getElementById('fSendDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('fEstDelivery').value = '';
+  document.getElementById('formModal').classList.add('show');
+}
+
+function openEditModal(id) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  editingId = id;
+  document.getElementById('formTitle').textContent = '编辑寄样记录';
+  document.getElementById('fCustomer').value = item.customer;
+  document.getElementById('fContact').value = item.contact || '';
+  document.getElementById('fExhibition').value = item.exhibition;
+  document.getElementById('fSamples').value = item.samples;
+  document.getElementById('fCourier').value = item.courier || '';
+  document.getElementById('fTrackingNo').value = item.trackingNo || '';
+  document.getElementById('fStatus').value = item.status;
+  document.getElementById('fSendDate').value = item.sendDate || '';
+  document.getElementById('fEstDelivery').value = item.estDelivery || '';
+  document.getElementById('fNotes').value = item.notes || '';
+  document.getElementById('formModal').classList.add('show');
+  closeModal('detailModal');
+}
+
+function saveRecord() {
+  const customer = document.getElementById('fCustomer').value.trim();
+  const exhibition = document.getElementById('fExhibition').value.trim();
+  const samples = document.getElementById('fSamples').value.trim();
+  if (!customer) { showToast('请填写客户名称','error'); return; }
+  if (!exhibition) { showToast('请填写展会名称','error'); return; }
+  if (!samples) { showToast('请填写样品明细','error'); return; }
+
+  const record = {
+    id: editingId || genId(), customer,
+    contact: document.getElementById('fContact').value.trim(),
+    exhibition, samples,
+    courier: document.getElementById('fCourier').value,
+    trackingNo: document.getElementById('fTrackingNo').value.trim(),
+    status: document.getElementById('fStatus').value,
+    sendDate: document.getElementById('fSendDate').value,
+    estDelivery: document.getElementById('fEstDelivery').value,
+    notes: document.getElementById('fNotes').value.trim(),
+    updatedAt: new Date().toISOString(),
+    statusHistory: [], trackingCache: null,
+  };
+
+  if (editingId) {
+    const idx = data.findIndex(d => d.id === editingId);
+    if (idx >= 0) {
+      record.statusHistory = data[idx].statusHistory || [];
+      record.trackingCache = data[idx].trackingCache || null;
+      if (data[idx].status !== record.status) {
+        record.statusHistory.push({ from: data[idx].status, to: record.status, time: new Date().toISOString() });
+      }
+      data[idx] = record;
+    }
+  } else {
+    record.statusHistory = [{ from: null, to: record.status, time: new Date().toISOString() }];
+    record.createdAt = new Date().toISOString();
+    data.unshift(record);
+  }
+  saveData(); closeModal('formModal'); renderAll();
+  showToast(editingId ? '已更新' : '已添加', 'success');
+}
+
+function deleteRecord(id) {
+  if (!confirm('确定删除此记录？')) return;
+  data = data.filter(d => d.id !== id); saveData(); renderAll(); showToast('已删除','success');
+}
+
+function advanceStatus(id) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  const s = STATUS_MAP[item.status];
+  if (!s.next) { showToast('已是最终状态'); return; }
+  item.statusHistory.push({ from: item.status, to: s.next, time: new Date().toISOString() });
+  item.status = s.next; item.updatedAt = new Date().toISOString();
+  saveData(); renderAll(); closeModal('detailModal');
+  showToast(`已推进到「${s.nextLabel}」`, 'success');
+}
+
+// ========== Filter & Render ==========
+function filterByStatus(status) {
+  currentFilter = status;
+  document.getElementById('statusFilter').value = status;
+  currentPage = 1; renderAll();
+  document.querySelectorAll('.stat-card').forEach((c,i) => {
+    c.classList.toggle('active', (status==='all'&&i===0)||(status==='pending'&&i===1)||(status==='transit'&&i===2)||(status==='received'&&i===3)||(status==='feedback'&&i===4));
+  });
+}
+
+function getFilteredData() {
+  const search = document.getElementById('searchInput').value.trim().toLowerCase();
+  const statusF = document.getElementById('statusFilter').value;
+  const exhibF = document.getElementById('exhibitionFilter').value;
+  const sortF = document.getElementById('sortFilter').value;
+  let filtered = data.filter(d => {
+    if (statusF !== 'all' && d.status !== statusF) return false;
+    if (exhibF !== 'all' && d.exhibition !== exhibF) return false;
+    if (search) { const h = `${d.customer} ${d.contact||''} ${d.exhibition} ${d.samples} ${d.trackingNo||''} ${d.courier||''}`.toLowerCase(); if (!h.includes(search)) return false; }
+    return true;
+  });
+  if (sortF === 'date_desc') filtered.sort((a,b) => new Date(b.updatedAt)-new Date(a.updatedAt));
+  else if (sortF === 'date_asc') filtered.sort((a,b) => new Date(a.updatedAt)-new Date(b.updatedAt));
+  else if (sortF === 'customer') filtered.sort((a,b) => a.customer.localeCompare(b.customer,'zh'));
+  return filtered;
+}
+
+function renderStats() {
+  document.getElementById('statTotal').textContent = data.length;
+  document.getElementById('statPending').textContent = data.filter(d => d.status==='pending').length;
+  document.getElementById('statTransit').textContent = data.filter(d => d.status==='transit'||d.status==='sent').length;
+  document.getElementById('statReceived').textContent = data.filter(d => d.status==='received').length;
+  document.getElementById('statFeedback').textContent = data.filter(d => d.status==='feedback').length;
+}
+
+function renderExhibitionFilter() {
+  const sel = document.getElementById('exhibitionFilter');
+  const cur = sel.value;
+  const exs = [...new Set(data.map(d => d.exhibition))].sort();
+  sel.innerHTML = '<option value="all">全部展会</option>' + exs.map(e => `<option value="${e}" ${e===cur?'selected':''}>${e}</option>`).join('');
+}
+
+function renderTable() {
+  const filtered = getFilteredData();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage-1)*PAGE_SIZE;
+  const pageData = filtered.slice(start, start+PAGE_SIZE);
+
+  const tbody = document.getElementById('tableBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">暂无寄样记录</div><div class="empty-hint">点击「新增」或「导入Excel」开始</div></div></td></tr>`;
+  } else {
+    tbody.innerHTML = pageData.map(item => {
+      const s = STATUS_MAP[item.status];
+      const color = getAvatarColor(item.customer);
+      const initial = item.customer.charAt(0);
+      const lines = item.samples.split('\n').filter(l=>l.trim());
+      const preview = lines.length > 2 ? lines.slice(0,2).join('；')+`...等${lines.length}项` : lines.join('；');
+      const ci = getCourierInfo(item);
+      const trackingHTML = renderTrackingInline(item);
+      return `<tr>
+        <td>
+          <div class="customer-cell">
+            <div class="customer-avatar" style="background:${color}">${initial}</div>
+            <div>
+              <div class="customer-name">${item.customer}</div>
+              ${item.contact ? `<div class="customer-contact">${item.contact}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td style="font-size:11px;color:var(--gray-600);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.exhibition}</td>
+        <td style="max-width:180px;">
+          <div style="font-size:11px;color:var(--gray-700);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${preview}</div>
+        </td>
+        <td>
+          <div>${ci.name ? `<span style="font-size:11px;font-weight:500;">${ci.name}</span>` : ''}</div>
+          <div style="font-size:10px;color:var(--primary);cursor:pointer;" onclick="copyText('${item.trackingNo}')" title="点击复制">${item.trackingNo || '<span style="color:var(--gray-300)">未填</span>'}</div>
+          ${trackingHTML}
+        </td>
+        <td><span class="status-badge ${s.class}"><span class="status-dot"></span>${s.label}</span></td>
+        <td style="font-size:11px;color:var(--gray-400);white-space:nowrap;">${formatDateTime(item.updatedAt)}</td>
+        <td>
+          <div class="action-btns">
+            <button class="action-btn" title="详情" onclick="showDetail('${item.id}')">👁</button>
+            ${s.next ? `<button class="action-btn next" title="推进到${s.nextLabel}" onclick="advanceStatus('${item.id}')">▶</button>` : ''}
+            <button class="action-btn" title="编辑" onclick="openEditModal('${item.id}')">✏️</button>
+            <button class="action-btn" title="删除" onclick="deleteRecord('${item.id}')">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('pagination').innerHTML = `<span>共 ${filtered.length} 条</span><div class="page-btns">${
+    currentPage>1?`<button class="page-btn" onclick="goPage(${currentPage-1})">‹</button>`:''
+  }${
+    Array.from({length:totalPages},(_,i)=>i+1).filter(p=>Math.abs(p-currentPage)<=2||p===1||p===totalPages)
+      .reduce((acc,p,i,arr)=>{if(i>0&&arr[i-1]!==p-1)acc.push('<span style="color:var(--gray-300)">...</span>');acc.push(`<button class="page-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`);return acc;},[]).join('')
+  }${
+    currentPage<totalPages?`<button class="page-btn" onclick="goPage(${currentPage+1})">›</button>`:''
+  }</div>`;
+}
+
+function goPage(p) { currentPage = p; renderTable(); }
+
+// ========== Batch Tracking ==========
+function batchTrackAll() {
+  const items = data.filter(d => d.trackingNo && (d.status==='sent'||d.status==='transit'||d.status==='pending'));
+  if (items.length === 0) { showToast('没有需要追踪的运单','warning'); return; }
+  doBatchTrack(items);
+}
+
+async function doBatchTrack(items) {
+  trackingResults = [];
+  document.getElementById('trackingBody').innerHTML = `<div style="text-align:center;padding:30px;"><div style="font-size:24px;margin-bottom:8px;">⏳</div><div>正在查询 ${items.length} 个运单，请稍候...</div><div style="font-size:12px;color:var(--gray-400);margin-top:4px;" id="trackProgress">0 / ${items.length}</div><div style="font-size:11px;color:var(--gray-300);margin-top:8px;">提示：即使API查询失败，也可点击「全部在新窗口查询」通过快递100官网查看</div></div>`;
+  document.getElementById('trackingModal').classList.add('show');
+  document.getElementById('batchUpdateStatusBtn').style.display = 'none';
+
+  let completed = 0;
+  for (const item of items) {
+    const ci = getCourierInfo(item);
+    const result = await queryTracking(item.trackingNo, ci.code);
+    const suggested = result ? KUAIDI100_STATE_MAP[result.state] : null;
+
+    // 更新缓存
+    if (result) {
+      item.trackingCache = { traces: result.traces, state: result.state, fetchedAt: new Date().toISOString() };
+      if (suggested) item.trackingCache.suggestedStatus = suggested;
+      saveData();
+    }
+
+    trackingResults.push({
+      id: item.id, customer: item.customer, trackingNo: item.trackingNo,
+      courier: ci.name, currentStatus: item.status, suggestedStatus: suggested,
+      latestTrace: result && result.traces.length > 0 ? result.traces[0].context : null,
+      latestTime: result && result.traces.length > 0 ? result.traces[0].time : null,
+      success: !!(result && result.traces.length > 0),
+    });
+
+    completed++;
+    const prog = document.getElementById('trackProgress');
+    if (prog) prog.textContent = `${completed} / ${items.length}`;
+  }
+
+  saveData(); renderTable();
+  renderBatchTrackingResults();
+}
+
+function renderBatchTrackingResults() {
+  const hasSuggestions = trackingResults.some(r => r.suggestedStatus && r.suggestedStatus !== r.currentStatus);
+
+  let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--gray-600);">
+    共查询 ${trackingResults.length} 个运单，${trackingResults.filter(r=>r.success).length} 个获取到物流信息，${trackingResults.filter(r=>r.suggestedStatus&&r.suggestedStatus!==r.currentStatus).length} 个建议更新状态
+  </div>
+  <div style="margin-bottom:12px;">
+    <button class="btn btn-sm btn-outline" onclick="openAllTrackingLinks()">🔗 全部在新窗口查询</button>
+  </div>
+  <div style="max-height:400px;overflow-y:auto;">`;
+
+  trackingResults.forEach(r => {
+    const currentLabel = STATUS_MAP[r.currentStatus].label;
+    const suggestLabel = r.suggestedStatus ? STATUS_MAP[r.suggestedStatus].label : '';
+    const needUpdate = r.suggestedStatus && r.suggestedStatus !== r.currentStatus;
+    const kd100Url = getKuaidi100Url(r.trackingNo);
+
+    html += `<div style="padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;${needUpdate?'border-color:var(--success);background:var(--success-bg);':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-weight:600;font-size:13px;">${r.customer}</span>
+        <span class="status-badge ${STATUS_MAP[r.currentStatus].class}">${currentLabel}</span>
+      </div>
+      <div style="font-size:11px;color:var(--gray-500);">${r.courier||'自动识别'} · ${r.trackingNo}</div>
+      ${r.success && r.latestTrace ? `<div style="font-size:11px;color:var(--gray-700);margin-top:4px;">📦 ${r.latestTrace}<br><span style="color:var(--gray-400)">${r.latestTime}</span></div>` : ''}
+      ${needUpdate ? `<div style="margin-top:6px;font-size:12px;">💡 建议更新：<strong style="color:var(--success)">${currentLabel} → ${suggestLabel}</strong>
+        <button class="btn btn-xs btn-success" style="margin-left:6px;" onclick="applySuggestedStatus('${r.id}','${r.suggestedStatus}')">更新</button>
+      </div>` : ''}
+      ${!r.success ? `<div style="margin-top:4px;font-size:11px;color:var(--gray-400);">API未获取到数据 · <a href="${kd100Url}" target="_blank" style="color:var(--primary);">快递100查询 ↗</a></div>` : ''}
+    </div>`;
+  });
+  html += '</div>';
+
+  if (hasSuggestions) document.getElementById('batchUpdateStatusBtn').style.display = '';
+  document.getElementById('trackingBody').innerHTML = html;
+}
+
+function openAllTrackingLinks() {
+  const items = data.filter(d => d.trackingNo && (d.status==='sent'||d.status==='transit'||d.status==='pending'));
+  if (items.length === 0) return;
+  if (items.length > 5 && !confirm(`将打开 ${items.length} 个窗口，是否继续？`)) return;
+  items.forEach((item, i) => {
+    setTimeout(() => {
+      window.open(getKuaidi100Url(item.trackingNo), '_blank');
+    }, i * 300);
+  });
+}
+
+function batchUpdateFromTracking() {
+  let updated = 0;
+  trackingResults.forEach(r => {
+    if (r.suggestedStatus && r.suggestedStatus !== r.currentStatus) {
+      const item = data.find(d => d.id === r.id);
+      if (item) {
+        item.statusHistory.push({ from: item.status, to: r.suggestedStatus, time: new Date().toISOString() });
+        item.status = r.suggestedStatus; item.updatedAt = new Date().toISOString();
+        if (item.trackingCache) item.trackingCache.suggestedStatus = undefined;
+        updated++;
+      }
+    }
+  });
+  if (updated > 0) { saveData(); renderAll(); showToast(`已更新 ${updated} 条记录状态`, 'success'); }
+  closeModal('trackingModal');
+}
+
+// ========== Excel Import ==========
+function openImportModal() {
+  importStep = 1; importRawData = null; importHeaders = []; importMapping = {}; importPreviewData = [];
+  showImportStep(1);
+  document.getElementById('importFile').value = '';
+  document.getElementById('importNextBtn').disabled = true;
+  document.getElementById('importNextBtn').textContent = '下一步';
+  document.getElementById('importBackBtn').style.display = 'none';
+  document.getElementById('importModal').classList.add('show');
+}
+
+function showImportStep(step) {
+  importStep = step;
+  document.getElementById('importContent1').style.display = step===1?'':'none';
+  document.getElementById('importContent2').style.display = step===2?'':'none';
+  document.getElementById('importContent3').style.display = step===3?'':'none';
+  [1,2,3].forEach(s => document.getElementById('importStep'+s).classList.toggle('active', s===step));
+  document.getElementById('importBackBtn').style.display = step>1?'':'none';
+  document.getElementById('importNextBtn').textContent = step===3 ? '确认导入' : '下一步';
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 5*1024*1024) { showToast('文件超过5MB','error'); return; }
+  parseExcelFile(file);
+}
+
+const importZone = document.getElementById('importZone');
+importZone.addEventListener('dragover', e => { e.preventDefault(); importZone.classList.add('dragover'); });
+importZone.addEventListener('dragleave', () => importZone.classList.remove('dragover'));
+importZone.addEventListener('drop', e => {
+  e.preventDefault(); importZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && (file.name.endsWith('.xlsx')||file.name.endsWith('.xls'))) parseExcelFile(file);
+  else showToast('请上传 .xlsx 或 .xls 文件','error');
+});
+
+function parseExcelFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (jsonData.length < 2) { showToast('Excel内容为空','error'); return; }
+      importHeaders = jsonData[0].map(h => String(h).trim());
+      importRawData = jsonData.slice(1).filter(row => row.some(cell => String(cell).trim()));
+      autoMapColumns();
+      document.getElementById('importNextBtn').disabled = false;
+      showToast(`已解析 ${importRawData.length} 行数据`, 'success');
+    } catch(err) { showToast('Excel解析失败: ' + err.message, 'error'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function autoMapColumns() {
+  importMapping = {};
+  const aliases = {
+    customer: ['客户名称','客户','客户名','customer'],
+    contact: ['联系人','联系','contact'],
+    exhibition: ['展会名称','展会','展会名','exhibition','expo'],
+    sendDate: ['寄出日期','寄出时间','发货日期','send date','date'],
+    samples: ['样品明细','样品','样品信息','货号明细','样品描述','samples'],
+    courier: ['快递公司','物流公司','快递','courier'],
+    trackingNo: ['快递单号','运单号','物流单号','单号','tracking','waybill'],
+    notes: ['备注','说明','notes','remark'],
+  };
+  SYSTEM_FIELDS.forEach(field => {
+    const al = aliases[field.key] || [];
+    let matchIdx = -1;
+    for (let i = 0; i < importHeaders.length; i++) {
+      if (al.some(a => importHeaders[i].toLowerCase() === a)) { matchIdx = i; break; }
+    }
+    if (matchIdx === -1) {
+      for (let i = 0; i < importHeaders.length; i++) {
+        if (al.some(a => importHeaders[i].includes(a) || a.includes(importHeaders[i]))) { matchIdx = i; break; }
+      }
+    }
+    importMapping[field.key] = matchIdx;
+  });
+}
+
+function renderMappingStep() {
+  const options = '<option value="-1">-- 不导入 --</option>' + importHeaders.map((h,i) => `<option value="${i}">${h}</option>`).join('');
+  document.getElementById('mappingRows').innerHTML = SYSTEM_FIELDS.map(field => {
+    const selVal = importMapping[field.key] !== undefined ? importMapping[field.key] : -1;
+    return `<div class="col-mapping-row">
+      <span class="col-mapping-src">${field.label}${field.required?' <span style="color:var(--danger)">*</span>':''}</span>
+      <span class="col-mapping-arrow">→</span>
+      <select class="col-mapping-select" data-field="${field.key}" onchange="importMapping['${field.key}']=parseInt(this.value)">
+        ${options.replace(`value="${selVal}"`, `value="${selVal}" selected`)}
+      </select>
+    </div>`;
+  }).join('');
+}
+
+function buildPreviewData() {
+  importPreviewData = importRawData.map(row => {
+    const record = {};
+    SYSTEM_FIELDS.forEach(f => {
+      const idx = importMapping[f.key];
+      if (idx >= 0 && idx < row.length) {
+        let val = row[idx]; if (val instanceof Date) val = val.toISOString().slice(0,10); else val = String(val).trim();
+        record[f.key] = val;
+      } else record[f.key] = '';
+    });
+    return record;
+  });
+}
+
+function renderPreviewStep() {
+  buildPreviewData();
+  const valid = importPreviewData.filter(r => r.customer && r.exhibition && r.samples);
+  const invalid = importPreviewData.filter(r => !r.customer || !r.exhibition || !r.samples);
+  document.getElementById('previewStats').innerHTML = `<span>共 <strong>${importPreviewData.length}</strong> 行</span><span>有效 <strong style="color:var(--success)">${valid.length}</strong></span><span>缺少必填 <strong style="color:var(--danger)">${invalid.length}</strong></span>`;
+  document.getElementById('previewTable').innerHTML = `<thead><tr><th>✓</th><th>客户</th><th>展会</th><th>样品明细</th><th>快递</th><th>运单号</th></tr></thead><tbody>${
+    importPreviewData.slice(0,100).map(r => {
+      const ok = r.customer && r.exhibition && r.samples;
+      return `<tr style="${ok?'':'background:var(--danger-bg)'}"><td>${ok?'✅':'❌'}</td><td>${r.customer||'<span style="color:var(--danger)">缺</span>'}</td><td>${r.exhibition||'<span style="color:var(--danger)">缺</span>'}</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.samples}</td><td>${r.courier||'-'}</td><td>${r.trackingNo||'-'}</td></tr>`;
+    }).join('')
+  }</tbody>`;
+}
+
+function importGoNext() {
+  if (importStep === 1) { if (!importRawData) { showToast('请先上传文件','error'); return; } renderMappingStep(); showImportStep(2); }
+  else if (importStep === 2) { renderPreviewStep(); showImportStep(3); }
+  else if (importStep === 3) { doImport(); }
+}
+function importGoBack() { if (importStep > 1) showImportStep(importStep - 1); }
+
+function doImport() {
+  buildPreviewData();
+  let imported = 0, merged = 0, skipped = 0;
+  importPreviewData.forEach(record => {
+    if (!record.customer || !record.exhibition || !record.samples) { skipped++; return; }
+    const existing = record.trackingNo ? data.find(d => d.customer===record.customer && d.trackingNo===record.trackingNo) : null;
+    if (existing) {
+      const eS = existing.samples.split('\n').filter(l=>l.trim());
+      const nS = record.samples.split('\n').filter(l=>l.trim());
+      existing.samples = [...new Set([...eS,...nS])].join('\n');
+      existing.updatedAt = new Date().toISOString();
+      if (record.courier && !existing.courier) existing.courier = record.courier;
+      if (record.contact && !existing.contact) existing.contact = record.contact;
+      if (record.sendDate && !existing.sendDate) existing.sendDate = record.sendDate;
+      if (record.notes) existing.notes = (existing.notes?existing.notes+'；':'') + record.notes;
+      merged++;
+    } else {
+      let courier = record.courier;
+      if (!courier && record.trackingNo) { const d = detectCourier(record.trackingNo); courier = d.name; }
+      data.unshift({
+        id: genId(), customer: record.customer, contact: record.contact||'',
+        exhibition: record.exhibition, sendDate: record.sendDate||'',
+        samples: record.samples, courier: courier||'', trackingNo: record.trackingNo||'',
+        estDelivery: '', notes: record.notes||'',
+        status: record.trackingNo ? 'sent' : 'pending',
+        statusHistory: [{ from: null, to: record.trackingNo?'sent':'pending', time: new Date().toISOString() }],
+        trackingCache: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      });
+      imported++;
+    }
+  });
+  saveData(); renderAll(); closeModal('importModal');
+  showToast(`导入 ${imported} 条，合并 ${merged} 条，跳过 ${skipped} 条`, 'success');
+}
+
+// ========== Template & Export ==========
+function downloadTemplate() {
+  const headers = ['客户名称','联系人','展会名称','寄出日期','样品明细','快递公司','快递单号','备注'];
+  const examples = [
+    ['ABC贸易','张经理','2026上海intertextile','2026-06-10','YB-2201 春亚纺 深蓝 3米','顺丰','SF1234567890','需加急'],
+    ['XYZ服装','李总','2026上海intertextile','2026-06-10','YB-3302 塔夫隆 黑色 5米\nYB-3303 塔夫隆 灰色 5米','德邦','DBL1234567890',''],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
+  ws['!cols'] = [{wch:14},{wch:10},{wch:22},{wch:12},{wch:36},{wch:10},{wch:18},{wch:16}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '寄样记录');
+  // 说明
+  const instr = [['字段说明','格式要求','是否必填'],['客户名称','文本','是'],['联系人','文本','否'],['展会名称','文本','是'],['寄出日期','日期 如2026-06-10','否'],['样品明细','每行一个，多个用Alt+Enter换行','是'],['快递公司','顺丰/德邦/中通等，可留空自动识别','否'],['快递单号','填写后自动设为已寄出','否'],['备注','文本','否']];
+  const wsI = XLSX.utils.aoa_to_sheet(instr);
+  wsI['!cols'] = [{wch:14},{wch:50},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsI, '填写说明');
+  XLSX.writeFile(wb, '展会寄样导入模板.xlsx');
+  showToast('模板已下载','success');
+}
+
+function exportData() {
+  if (data.length === 0) { showToast('暂无数据','error'); return; }
+  const headers = ['客户名称','联系人','展会名称','寄出日期','样品明细','快递公司','快递单号','状态','预计送达','备注','更新时间'];
+  const rows = data.map(d => [d.customer,d.contact||'',d.exhibition,d.sendDate||'',d.samples,d.courier||'',d.trackingNo||'',STATUS_MAP[d.status].label,d.estDelivery||'',d.notes||'',formatDateTime(d.updatedAt)]);
+  const ws = XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols'] = [{wch:14},{wch:10},{wch:22},{wch:12},{wch:36},{wch:10},{wch:18},{wch:8},{wch:12},{wch:16},{wch:18}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '寄样记录');
+  XLSX.writeFile(wb, `寄样记录_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast('已导出Excel','success');
+}
+
+// ========== Init ==========
+function renderAll() { renderStats(); renderExhibitionFilter(); renderTable(); }
+loadData(); renderAll();
+
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('show'); });
+});
+</script>
+</body>
+</html>
