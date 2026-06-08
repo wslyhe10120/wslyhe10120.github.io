@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>展会样品寄样进度查询</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  :root {
+    --primary: #4F46E5; --primary-light: #818CF8; --primary-bg: #EEF2FF;
+    --success: #10B981; --success-bg: #ECFDF5;
+    --warning: #F59E0B; --warning-bg: #FFFBEB;
+    --danger: #EF4444; --danger-bg: #FEF2F2;
+    --info: #3B82F6; --info-bg: #EFF6FF;
+    --gray-50: #F9FAFB; --gray-100: #F3F4F6; --gray-200: #E5E7EB;
+    --gray-300: #D1D5DB; --gray-400: #9CA3AF; --gray-500: #6B7280;
+    --gray-600: #4B5563; --gray-700: #374151; --gray-800: #1F2937;
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    --radius: 12px; --radius-sm: 8px; --radius-full: 9999px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh; color: var(--gray-800);
+  }
+
+  /* ========== Header ========== */
+  .header {
+    background: rgba(255,255,255,0.97); backdrop-filter: blur(20px);
+    padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+    box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 100; gap: 12px;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-logo { width: 38px; height: 38px; background: linear-gradient(135deg, #4F46E5, #7C3AED); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; }
+  .header-title { font-size: 16px; font-weight: 700; color: var(--gray-900); }
+  .header-subtitle { font-size: 11px; color: var(--gray-400); }
+  .header-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+  .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.2s; white-space: nowrap; }
+  .btn-primary { background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.35); }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,0.45); }
+  .btn-white { background: white; color: var(--gray-700); border: 1px solid var(--gray-200); }
+  .btn-white:hover { background: var(--gray-50); border-color: var(--gray-300); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { background: #059669; }
+  .btn-outline { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+  .btn-outline:hover { background: var(--primary-bg); }
+  .btn-warning { background: var(--warning); color: white; }
+  .btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 6px; }
+
+  /* ========== Public Search View ========== */
+  .public-container { max-width: 800px; margin: 0 auto; padding: 40px 16px; }
+  .search-hero { text-align: center; margin-bottom: 32px; }
+  .search-hero-icon { font-size: 56px; margin-bottom: 12px; }
+  .search-hero h1 { font-size: 24px; font-weight: 800; color: white; margin-bottom: 6px; text-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  .search-hero p { font-size: 14px; color: rgba(255,255,255,0.8); }
+  .search-box-public {
+    background: white; border-radius: var(--radius); padding: 6px;
+    box-shadow: var(--shadow-lg); display: flex; gap: 0; max-width: 520px; margin: 0 auto 16px;
+  }
+  .search-box-public input {
+    flex: 1; padding: 14px 18px; border: none; font-size: 16px; outline: none;
+    border-radius: calc(var(--radius) - 4px); background: var(--gray-50);
+  }
+  .search-box-public input:focus { background: white; }
+  .search-box-public button {
+    padding: 14px 28px; background: linear-gradient(135deg, #4F46E5, #7C3AED);
+    color: white; border: none; border-radius: calc(var(--radius) - 4px);
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  .search-box-public button:hover { box-shadow: 0 4px 12px rgba(79,70,229,0.45); }
+  .search-hint { text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 24px; }
+
+  .public-results { margin-top: 24px; }
+  .public-results-title { font-size: 14px; color: white; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .result-card {
+    background: rgba(255,255,255,0.97); border-radius: var(--radius);
+    box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; transition: all 0.2s;
+  }
+  .result-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .result-card-header {
+    padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--gray-100); background: var(--gray-50);
+  }
+  .result-card-no { font-size: 15px; font-weight: 700; color: var(--primary); }
+  .result-card-status { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--radius-full); font-size: 12px; font-weight: 600; background: var(--info-bg); color: var(--info); }
+  .result-card-body { padding: 14px 18px; }
+  .result-row { display: flex; padding: 5px 0; font-size: 13px; }
+  .result-row .label { color: var(--gray-500); min-width: 80px; flex-shrink: 0; }
+  .result-row .value { color: var(--gray-800); font-weight: 500; word-break: break-all; }
+  .result-samples { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+  .result-sample-tag { padding: 3px 9px; border-radius: var(--radius-full); background: var(--primary-bg); color: var(--primary); font-size: 11px; font-weight: 500; }
+  .result-tracking { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--gray-100); }
+  .result-tracking a { color: var(--primary); text-decoration: none; font-size: 12px; font-weight: 500; }
+  .result-tracking a:hover { text-decoration: underline; }
+  .result-empty { text-align: center; padding: 40px 20px; color: rgba(255,255,255,0.7); }
+  .result-empty-icon { font-size: 48px; margin-bottom: 8px; }
+  .result-empty-text { font-size: 14px; }
+  .result-auto-search { text-align: center; color: rgba(255,255,255,0.7); font-size: 13px; margin-bottom: 16px; }
+  .result-auto-search strong { color: white; }
+
+  /* ========== Admin View ========== */
+  .admin-container { max-width: 1320px; margin: 0 auto; padding: 20px 16px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+  .stat-card { background: rgba(255,255,255,0.95); border-radius: var(--radius); padding: 16px; text-align: center; box-shadow: var(--shadow); transition: all 0.2s; cursor: pointer; border: 2px solid transparent; }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card.active { border-color: var(--primary); box-shadow: 0 4px 12px rgba(79,70,229,0.2); }
+  .stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin: 0 auto 8px; }
+  .stat-value { font-size: 26px; font-weight: 800; line-height: 1; }
+  .stat-label { font-size: 11px; color: var(--gray-500); margin-top: 3px; font-weight: 500; }
+
+  .main-panel { background: rgba(255,255,255,0.97); backdrop-filter: blur(10px); border-radius: var(--radius); box-shadow: var(--shadow-lg); overflow: hidden; }
+  .toolbar { padding: 14px 18px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--gray-100); flex-wrap: wrap; }
+  .search-box { flex: 1; min-width: 180px; position: relative; }
+  .search-box input { width: 100%; padding: 8px 12px 8px 34px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; outline: none; background: var(--gray-50); transition: all 0.2s; }
+  .search-box input:focus { border-color: var(--primary); background: white; }
+  .search-box::before { content: '🔍'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
+  .filter-select { padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; outline: none; background: var(--gray-50); cursor: pointer; min-width: 100px; }
+
+  .table-wrapper { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--gray-50); }
+  th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; border-bottom: 1px solid var(--gray-200); }
+  td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+  tr:hover td { background: var(--gray-50); }
+  .customer-cell { display: flex; align-items: center; gap: 8px; }
+  .customer-avatar { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: white; flex-shrink: 0; }
+  .customer-name { font-weight: 600; color: var(--gray-800); font-size: 13px; }
+  .customer-contact { font-size: 10px; color: var(--gray-400); }
+  .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 600; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status-sent { background: var(--success-bg); color: var(--success); } .status-sent .status-dot { background: var(--success); }
+  .status-pending { background: var(--warning-bg); color: var(--warning); } .status-pending .status-dot { background: var(--warning); }
+  .action-btns { display: flex; gap: 2px; }
+  .action-btn { width: 28px; height: 28px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; background: transparent; transition: all 0.15s; }
+  .action-btn:hover { background: var(--gray-100); }
+  .exhibition-no-cell { font-weight: 700; color: var(--primary); font-size: 13px; cursor: pointer; }
+  .exhibition-no-cell:hover { text-decoration: underline; }
+
+  .pagination { padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--gray-100); font-size: 12px; color: var(--gray-500); }
+  .page-btns { display: flex; gap: 3px; }
+  .page-btn { padding: 4px 9px; border-radius: 6px; border: 1px solid var(--gray-200); background: white; cursor: pointer; font-size: 11px; transition: all 0.2s; }
+  .page-btn:hover, .page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+  /* ========== Modals ========== */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: white; border-radius: var(--radius); box-shadow: var(--shadow-lg); width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; animation: modalIn 0.2s ease; }
+  .modal-lg { max-width: 800px; }
+  @keyframes modalIn { from{opacity:0;transform:scale(0.95) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }
+  .modal-header { padding: 18px 22px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h3 { font-size: 15px; font-weight: 700; }
+  .modal-close { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .modal-close:hover { background: var(--gray-100); }
+  .modal-body { padding: 18px 22px; }
+  .modal-footer { padding: 14px 22px; border-top: 1px solid var(--gray-100); display: flex; justify-content: flex-end; gap: 8px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--gray-600); }
+  .form-label .required { color: var(--danger); }
+  .form-input, .form-select, .form-textarea { padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; outline: none; transition: border-color 0.2s; font-family: inherit; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+  .form-textarea { resize: vertical; min-height: 56px; }
+
+  /* Login */
+  .login-box { text-align: center; }
+  .login-box .login-icon { font-size: 48px; margin-bottom: 12px; }
+  .login-box .login-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .login-box .login-subtitle { font-size: 12px; color: var(--gray-400); margin-bottom: 20px; }
+  .login-box input { width: 100%; padding: 12px 14px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 14px; outline: none; text-align: center; margin-bottom: 12px; }
+  .login-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+
+  /* Import */
+  .import-zone { border: 2px dashed var(--gray-300); border-radius: var(--radius); padding: 36px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--gray-50); }
+  .import-zone:hover, .import-zone.dragover { border-color: var(--primary); background: var(--primary-bg); }
+  .import-zone-icon { font-size: 40px; margin-bottom: 10px; }
+  .import-zone-text { font-size: 14px; color: var(--gray-600); font-weight: 500; }
+  .import-zone-hint { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+  .import-steps { display: flex; gap: 0; margin: 18px 0; }
+  .import-step { flex: 1; text-align: center; padding: 10px 8px; background: var(--gray-50); border: 1px solid var(--gray-200); font-size: 11px; color: var(--gray-500); }
+  .import-step:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .import-step:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  .import-step.active { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+  .import-step .step-num { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; background: var(--gray-200); color: var(--gray-500); align-items: center; justify-content: center; font-size: 11px; font-weight: 700; margin-right: 4px; }
+  .import-step.active .step-num { background: var(--primary); color: white; }
+  .preview-table-wrap { max-height: 280px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); margin: 12px 0; }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .preview-table th { padding: 6px 8px; background: var(--gray-100); font-weight: 600; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 1; }
+  .preview-table td { padding: 5px 8px; border-bottom: 1px solid var(--gray-100); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preview-stats { display: flex; gap: 16px; padding: 10px 0; font-size: 12px; color: var(--gray-600); }
+  .preview-stats strong { color: var(--primary); }
+  .col-mapping-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--gray-100); }
+  .col-mapping-row:last-child { border-bottom: none; }
+  .col-mapping-src { flex: 0 0 140px; font-size: 12px; color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-mapping-arrow { color: var(--gray-300); }
+  .col-mapping-select { flex: 1; padding: 5px 8px; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 12px; outline: none; }
+  .col-mapping-select:focus { border-color: var(--primary); }
+
+  /* Detail & Timeline */
+  .detail-section { margin-bottom: 14px; }
+  .detail-section-title { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid var(--gray-100); }
+  .detail-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; }
+  .detail-row .label { color: var(--gray-500); }
+  .detail-row .value { font-weight: 600; color: var(--gray-800); text-align: right; max-width: 60%; word-break: break-all; }
+  .sample-items { display: flex; flex-wrap: wrap; gap: 5px; }
+  .sample-tag { padding: 3px 9px; border-radius: var(--radius-full); background: var(--primary-bg); color: var(--primary); font-size: 11px; font-weight: 500; }
+
+  /* Tracking iframe */
+  .tracking-iframe-wrap { margin-top: 8px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); overflow: hidden; background: white; position: relative; }
+  .tracking-iframe-bar { padding: 8px 12px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tracking-iframe-bar .bar-title { font-size: 12px; font-weight: 600; color: var(--gray-700); display: flex; align-items: center; gap: 4px; }
+  .tracking-iframe-bar .bar-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tracking-iframe-bar .bar-actions a, .tracking-iframe-bar .bar-actions button { font-size: 11px; padding: 3px 8px; border-radius: 6px; text-decoration: none; cursor: pointer; border: 1px solid var(--gray-200); background: white; color: var(--gray-600); transition: all 0.15s; }
+  .tracking-iframe-bar .bar-actions a:hover, .tracking-iframe-bar .bar-actions button:hover { border-color: var(--primary); color: var(--primary); }
+  .tracking-iframe-frame { width: 100%; height: 420px; border: none; display: block; }
+  .tracking-iframe-fallback { padding: 24px 16px; text-align: center; }
+  .tracking-iframe-fallback .fallback-icon { font-size: 36px; margin-bottom: 8px; }
+  .tracking-iframe-fallback .fallback-text { font-size: 13px; color: var(--gray-500); margin-bottom: 12px; }
+  .tracking-iframe-fallback .fallback-links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .tracking-iframe-fallback .fallback-links a { display: inline-flex; align-items: center; gap: 4px; padding: 8px 16px; border-radius: var(--radius-sm); background: var(--primary); color: white; text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+  .tracking-iframe-fallback .fallback-links a:hover { background: var(--primary-light); }
+  .tracking-iframe-fallback .fallback-links a.secondary { background: white; color: var(--gray-700); border: 1px solid var(--gray-200); }
+  .tracking-iframe-fallback .fallback-links a.secondary:hover { border-color: var(--primary); color: var(--primary); }
+  .tracking-api-result { margin-top: 8px; border: 1px solid rgba(79,70,229,0.2); border-radius: var(--radius-sm); background: var(--primary-bg); overflow: hidden; }
+  .tracking-api-result .api-header { padding: 6px 12px; background: white; border-bottom: 1px solid rgba(79,70,229,0.1); font-size: 11px; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 4px; }
+  .tracking-api-result .api-timeline { padding: 8px 12px 8px 24px; max-height: 160px; overflow-y: auto; }
+  .tracking-timeline { padding: 12px 12px 12px 28px; max-height: 260px; overflow-y: auto; position: relative; }
+  .tracking-timeline::before { content: ''; position: absolute; left: 17px; top: 16px; bottom: 16px; width: 2px; background: var(--gray-200); }
+  .track-item { position: relative; padding-bottom: 12px; }
+  .track-item:last-child { padding-bottom: 0; }
+  .track-dot { position: absolute; left: -17px; top: 3px; width: 10px; height: 10px; border-radius: 50%; background: var(--gray-300); border: 2px solid white; }
+  .track-item:first-child .track-dot { background: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.2); }
+  .track-item:first-child .track-text { color: var(--gray-800); font-weight: 500; }
+  .track-text { font-size: 11px; color: var(--gray-500); line-height: 1.5; }
+  .track-time { font-size: 10px; color: var(--gray-300); margin-top: 1px; }
+  .tracking-loading { padding: 24px; text-align: center; font-size: 13px; color: var(--gray-400); }
+  .tracking-loading .spinner { display: inline-block; animation: spin 1s linear infinite; font-size: 18px; }
+  .tracking-suggest-box { margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--success-bg); border: 1px solid rgba(16,185,129,0.2); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tracking-suggest-text { font-size: 12px; color: var(--gray-700); }
+  .tracking-suggest-text strong { color: var(--success); }
+
+  /* QR Code */
+  .qr-section { margin-top: 16px; }
+  .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .qr-card { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+  .qr-card canvas, .qr-card img { margin: 0 auto 8px; display: block; }
+  .qr-card-title { font-size: 13px; font-weight: 700; color: var(--gray-800); margin-bottom: 4px; }
+  .qr-card-link { font-size: 10px; color: var(--primary); word-break: break-all; margin-bottom: 8px; }
+  .qr-card-actions { display: flex; gap: 4px; justify-content: center; }
+
+  .empty-state { padding: 50px 20px; text-align: center; }
+  .empty-icon { font-size: 44px; margin-bottom: 10px; }
+  .empty-text { font-size: 13px; color: var(--gray-400); }
+  .empty-hint { font-size: 11px; color: var(--gray-300); margin-top: 4px; }
+
+  .toast { position: fixed; top: 80px; right: 20px; padding: 10px 18px; border-radius: var(--radius-sm); background: var(--gray-800); color: white; font-size: 12px; font-weight: 500; box-shadow: var(--shadow-lg); transform: translateX(120%); transition: transform 0.3s ease; z-index: 300; }
+  .toast.show { transform: translateX(0); }
+  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); }
+  .toast.warning { background: var(--warning); }
+
+  @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .form-grid { grid-template-columns: 1fr; }
+    .toolbar { flex-direction: column; }
+    .search-box { width: 100%; }
+    .header-subtitle { display: none; }
+    th, td { padding: 7px 8px; }
+    .header-actions { width: 100%; }
+    .public-container { padding: 24px 12px; }
+    .search-hero h1 { font-size: 20px; }
+    .search-box-public { flex-direction: column; gap: 6px; padding: 8px; }
+    .search-box-public input { padding: 12px 14px; }
+    .search-box-public button { padding: 12px; }
+    .qr-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== Public View ========== -->
+<div id="publicView">
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">📦</div>
+      <div>
+        <div class="header-title">展会样品寄样查询</div>
+        <div class="header-subtitle">福建宇邦纺织科技有限公司</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-white btn-sm" onclick="showLoginModal()">🔐 后台管理</button>
+    </div>
+  </div>
+  <div class="public-container">
+    <div class="search-hero">
+      <div class="search-hero-icon">📦</div>
+      <h1>展会样品寄样进度查询</h1>
+      <p>输入展会编号，查询样品寄送详情</p>
+    </div>
+    <div class="search-box-public">
+      <input type="text" id="publicSearchInput" placeholder="请输入展会编号" onkeydown="if(event.key==='Enter')publicSearch()">
+      <button onclick="publicSearch()">🔍 查询</button>
+    </div>
+    <div class="search-hint">输入展会编号即可查询该展会的样品寄送信息</div>
+    <div id="publicResults"></div>
+  </div>
+</div>
+
+<!-- ========== Admin View ========== -->
+<div id="adminView" style="display:none">
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">📦</div>
+      <div>
+        <div class="header-title">展会样品寄样管理 <span style="color:var(--danger);font-size:10px;">后台</span></div>
+        <div class="header-subtitle">福建宇邦纺织科技有限公司</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-white btn-sm" onclick="openImportModal()">📥 导入Excel</button>
+      <button class="btn btn-white btn-sm" onclick="downloadTemplate()">📋 下载模板</button>
+      <button class="btn btn-white btn-sm" onclick="batchTrackAll()">🚚 批量查物流</button>
+      <button class="btn btn-white btn-sm" onclick="showQRManager()">📱 二维码</button>
+      <button class="btn btn-white btn-sm" onclick="exportData()">📤 导出</button>
+      <button class="btn btn-primary" onclick="openAddModal()">➕ 新增</button>
+      <button class="btn btn-white btn-sm" onclick="showChangePwdModal()">🔑 改密码</button>
+      <button class="btn btn-white btn-sm" onclick="logout()" style="color:var(--danger);border-color:var(--danger);">🚪 退出</button>
+    </div>
+  </div>
+  <div class="admin-container">
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card active" onclick="adminFilter('all')">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#4F46E5,#7C3AED);color:white;">📋</div>
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-label">全部记录(Total)</div>
+      </div>
+      <div class="stat-card" onclick="adminFilter('sent')">
+        <div class="stat-icon" style="background:var(--success-bg);color:var(--success);">📦</div>
+        <div class="stat-value" id="statSent">0</div>
+        <div class="stat-label">已寄样(Samples sent)</div>
+      </div>
+      <div class="stat-card" onclick="adminFilter('pending')">
+        <div class="stat-icon" style="background:var(--warning-bg);color:var(--warning);">📭</div>
+        <div class="stat-value" id="statPending">0</div>
+        <div class="stat-label">未寄样(Samples not sent)</div>
+      </div>
+    </div>
+    <div class="main-panel">
+      <div class="toolbar">
+        <div class="search-box">
+          <input type="text" id="adminSearchInput" placeholder="搜索展会编号、客户、货号、快递单号..." oninput="renderAdminTable()">
+        </div>
+        <select class="filter-select" id="exhibitionFilter" onchange="renderAdminTable()">
+          <option value="all">全部展会</option>
+        </select>
+        <select class="filter-select" id="sortFilter" onchange="renderAdminTable()">
+          <option value="date_desc">最新优先</option>
+          <option value="date_asc">最早优先</option>
+          <option value="customer">按客户</option>
+          <option value="exhibitionNo">按展会编号</option>
+        </select>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>展会编号(Exhibition Code)</th><th>客户(Customer Name)</th><th>展会名称(Exhibition Name)</th><th>选中产品货号(Article No)</th><th>快递单号(Tracking Number)</th><th>状态(Status)</th><th>更新时间</th><th>操作</th>
+          </tr></thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="adminPagination"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Login Modal ========== -->
+<div class="modal-overlay" id="loginModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <h3>🔐 后台登录</h3>
+      <button class="modal-close" onclick="closeModal('loginModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="login-box">
+        <div class="login-icon">🔒</div>
+        <div class="login-title">请输入管理密码</div>
+        <div class="login-subtitle">仅限授权人员访问后台管理</div>
+        <input type="password" id="loginPassword" placeholder="输入密码" onkeydown="if(event.key==='Enter')doLogin()">
+        <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="doLogin()">登录</button>
+        <div id="loginError" style="color:var(--danger);font-size:12px;margin-top:8px;display:none;">密码错误，请重试</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Add/Edit Modal ========== -->
+<!-- Change Password Modal -->
+<div class="modal-overlay" id="changePwdModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <h3>🔑 修改管理密码</h3>
+      <button class="modal-close" onclick="closeModal('changePwdModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="login-box">
+        <div class="login-icon">🔐</div>
+        <div class="login-title">设置新密码</div>
+        <div class="login-subtitle">修改后下次登录需使用新密码</div>
+        <input type="password" id="oldPwd" placeholder="输入当前密码" style="margin-bottom:8px;">
+        <input type="password" id="newPwd" placeholder="输入新密码" style="margin-bottom:8px;">
+        <input type="password" id="confirmPwd" placeholder="再次输入新密码" onkeydown="if(event.key==='Enter')doChangePwd()">
+        <button class="btn btn-primary" style="width:100%;padding:12px;margin-top:8px;" onclick="doChangePwd()">确认修改</button>
+        <div id="changePwdError" style="color:var(--danger);font-size:12px;margin-top:8px;display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="formModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="formTitle">新增寄样记录</h3>
+      <button class="modal-close" onclick="closeModal('formModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">展会编号(Exhibition Code) <span class="required">*</span></label>
+          <input type="text" class="form-input" id="fExhibitionNo" placeholder="如：ZH2026001">
+        </div>
+        <div class="form-group">
+          <label class="form-label">客户(Customer Name) <span class="required">*</span></label>
+          <input type="text" class="form-input" id="fCustomer" placeholder="如：ABC贸易">
+        </div>
+        <div class="form-group">
+          <label class="form-label">展会名称(Exhibition Name)</label>
+          <input type="text" class="form-input" id="fExhibition" placeholder="如：2026上海intertextile">
+        </div>
+        <div class="form-group">
+          <label class="form-label">联系人(Contact)</label>
+          <input type="text" class="form-input" id="fContact" placeholder="如：张经理">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">选中产品货号(Article No) <span class="required">*</span></label>
+          <textarea class="form-textarea" id="fSamples" placeholder="每行一个产品货号"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">快递公司</label>
+          <select class="form-select" id="fCourier">
+            <option value="">自动识别或手动选择</option>
+            <option>顺丰</option><option>德邦</option><option>中通</option>
+            <option>圆通</option><option>申通</option><option>韵达</option>
+            <option>京东</option><option>EMS</option><option>极兔</option><option>其他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">快递单号(Tracking Number)</label>
+          <input type="text" class="form-input" id="fTrackingNo" placeholder="输入快递单号" oninput="autoDetectCourier()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">寄出日期(Dispatch Date)</label>
+          <input type="date" class="form-input" id="fSendDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">状态(Status) <span class="required">*</span></label>
+          <select class="form-select" id="fStatus">
+            <option value="pending">未寄样(Samples not sent)</option>
+            <option value="sent">已寄样(Samples sent)</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">寄样备注(Sample Shipping Remarks)</label>
+          <textarea class="form-textarea" id="fSendRemark" placeholder="寄样相关说明，如特殊包装、分批寄送等"></textarea>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">备注</label>
+          <textarea class="form-textarea" id="fNotes" placeholder="特殊要求、注意事项等"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-white" onclick="closeModal('formModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveRecord()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Detail Modal ========== -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-header">
+      <h3>寄样详情</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer" id="detailFooter">
+      <button class="btn btn-white" onclick="closeModal('detailModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Import Modal ========== -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>📥 从Excel导入</h3>
+      <button class="modal-close" onclick="closeModal('importModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="import-steps">
+        <div class="import-step active" id="importStep1"><span class="step-num">1</span>上传文件</div>
+        <div class="import-step" id="importStep2"><span class="step-num">2</span>列映射</div>
+        <div class="import-step" id="importStep3"><span class="step-num">3</span>预览确认</div>
+      </div>
+      <div id="importContent1">
+        <div class="import-zone" id="importZone" onclick="document.getElementById('importFile').click()">
+          <div class="import-zone-icon">📊</div>
+          <div class="import-zone-text">点击或拖拽Excel文件到此处</div>
+          <div class="import-zone-hint">支持 .xlsx / .xls 格式</div>
+        </div>
+        <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
+        <div style="margin-top:12px;font-size:12px;color:var(--gray-400);text-align:center;">
+          还没有模板？<a href="javascript:downloadTemplate()" style="color:var(--primary);font-weight:500;">点击下载Excel模板</a>
+        </div>
+      </div>
+      <div id="importContent2" style="display:none;">
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:12px;">请确认Excel列与系统字段的对应关系：</p>
+        <div id="mappingRows"></div>
+      </div>
+      <div id="importContent3" style="display:none;">
+        <div class="preview-stats" id="previewStats"></div>
+        <div class="preview-table-wrap"><table class="preview-table" id="previewTable"></table></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-white" id="importBackBtn" style="display:none;" onclick="importGoBack()">上一步</button>
+      <button class="btn btn-white" onclick="closeModal('importModal')">取消</button>
+      <button class="btn btn-primary" id="importNextBtn" onclick="importGoNext()" disabled>下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== QR Code Manager Modal ========== -->
+<div class="modal-overlay" id="qrModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>📱 展会二维码管理</h3>
+      <button class="modal-close" onclick="closeModal('qrModal')">✕</button>
+    </div>
+    <div class="modal-body" id="qrBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-white" onclick="closeModal('qrModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Batch Tracking Modal ========== -->
+<div class="modal-overlay" id="trackingModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>🚚 批量物流追踪</h3>
+      <button class="modal-close" onclick="closeModal('trackingModal')">✕</button>
+    </div>
+    <div class="modal-body" id="trackingBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-white" onclick="closeModal('trackingModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===================== Constants =====================
+const STORAGE_KEY = 'sample_tracking_data';
+const ADMIN_KEY = 'sample_tracking_admin';
+const ADMIN_PWD = 'yubang2026';
+const AVATAR_COLORS = ['#4F46E5','#7C3AED','#EC4899','#F59E0B','#10B981','#3B82F6','#EF4444','#8B5CF6','#14B8A6','#F97316'];
+const PAGE_SIZE = 15;
+
+const COURIER_PATTERNS = [
+  { name: '顺丰',  code: 'shunfeng', pattern: /^(SF\d{10,18}|0\d{11,14})$/i },
+  { name: '德邦',  code: 'debang',   pattern: /^(DPX|DPE|DBL)\d{8,14}$/i },
+  { name: '京东',  code: 'jd',       pattern: /^JD\d{10,18}$/i },
+  { name: 'EMS',   code: 'ems',      pattern: /^[A-Z]{2}\d{9}[A-Z]{2}$/i },
+  { name: '中通',  code: 'zhongtong', pattern: /^(7[0-9]{11,14}|46[0-9]{10,13}|78[0-9]{10,13})$/ },
+  { name: '圆通',  code: 'yuantong',  pattern: /^(YT[0-9]{10,16})$/ },
+  { name: '申通',  code: 'shentong',  pattern: /^(STO[0-9]{10,16}|22[0-9]{9,13}|77[0-9]{9,13})$/ },
+  { name: '韵达',  code: 'yunda',     pattern: /^(31[0-9]{10,13}|YD[0-9]{10,16})$/ },
+  { name: '极兔',  code: 'jtexpress', pattern: /^JT[0-9]{10,16}$/i },
+];
+
+const SYSTEM_FIELDS = [
+  { key: 'exhibitionNo', label: '展会编号(Exhibition Code)', required: true },
+  { key: 'customer',     label: '客户(Customer Name)', required: true },
+  { key: 'contact',      label: '联系人(Contact)',   required: false },
+  { key: 'exhibition',   label: '展会名称(Exhibition Name)', required: false },
+  { key: 'sendDate',     label: '寄出日期(Dispatch Date)', required: false },
+  { key: 'samples',      label: '选中产品货号(Article No)', required: true },
+  { key: 'courier',      label: '快递公司', required: false },
+  { key: 'trackingNo',   label: '快递单号(Tracking Number)', required: false },
+  { key: 'sendRemark',   label: '寄样备注(Sample Shipping Remarks)', required: false },
+  { key: 'status',       label: '状态(Status)', required: false },
+  { key: 'notes',        label: '备注',     required: false },
+];
+
+// ===================== State =====================
+let data = [];
+let isAdmin = false;
+let adminCurrentFilter = 'all';
+let adminCurrentPage = 1;
+let editingId = null;
+let trackingResults = [];
+let importStep = 1, importRawData = null, importHeaders = [], importMapping = {}, importPreviewData = [];
+
+// ===================== Utilities =====================
+function genId() { return 'S' + Date.now().toString(36) + Math.random().toString(36).substr(2,4); }
+function getAvatarColor(n) { let h=0; for(let i=0;i<n.length;i++) h=n.charCodeAt(i)+((h<<5)-h); return AVATAR_COLORS[Math.abs(h)%AVATAR_COLORS.length]; }
+function formatDateTime(d) { if(!d) return '-'; const dt=new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`; }
+function showToast(msg, type='') { const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+type; setTimeout(()=>t.className='toast',2500); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function copyText(text) { navigator.clipboard.writeText(text).then(()=>showToast('已复制','success')).catch(()=>{}); }
+function getBaseUrl() { return window.location.href.split('?')[0].split('#')[0]; }
+function getShareUrl(exhibitionNo) { return getBaseUrl() + '?no=' + encodeURIComponent(exhibitionNo); }
+
+// ===================== Data =====================
+function loadData() { try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { data = []; }
+  // Migrate old data: add missing fields
+  let migrated = false;
+  data.forEach(d => {
+    if (!d.status) { d.status = d.trackingNo ? 'sent' : 'pending'; migrated = true; }
+    if (d.status === '已寄出') { d.status = 'sent'; migrated = true; }
+    if (d.sendRemark === undefined) { d.sendRemark = ''; migrated = true; }
+  });
+  if (migrated) saveData();
+}
+function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+// ===================== Auth =====================
+function checkAdminSession() {
+  try { isAdmin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch(e) { isAdmin = false; }
+}
+function showLoginModal() {
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginModal').classList.add('show');
+  setTimeout(() => document.getElementById('loginPassword').focus(), 200);
+}
+function doLogin() {
+  const pwd = document.getElementById('loginPassword').value;
+  const stored = localStorage.getItem(ADMIN_KEY + '_pwd') || ADMIN_PWD;
+  if (pwd === stored) {
+    isAdmin = true;
+    try { sessionStorage.setItem(ADMIN_KEY, '1'); } catch(e) {}
+    closeModal('loginModal');
+    switchView();
+    showToast('已进入后台管理', 'success');
+  } else {
+    document.getElementById('loginError').style.display = '';
+  }
+}
+function logout() {
+  isAdmin = false;
+  try { sessionStorage.removeItem(ADMIN_KEY); } catch(e) {}
+  switchView();
+  showToast('已退出后台', 'success');
+}
+
+function showChangePwdModal() {
+  document.getElementById('oldPwd').value = '';
+  document.getElementById('newPwd').value = '';
+  document.getElementById('confirmPwd').value = '';
+  document.getElementById('changePwdError').style.display = 'none';
+  document.getElementById('changePwdModal').classList.add('show');
+}
+
+function doChangePwd() {
+  const oldPwd = document.getElementById('oldPwd').value;
+  const newPwd = document.getElementById('newPwd').value;
+  const confirmPwd = document.getElementById('confirmPwd').value;
+  const currentPwd = localStorage.getItem(ADMIN_KEY + '_pwd') || ADMIN_PWD;
+  const errEl = document.getElementById('changePwdError');
+  
+  if (oldPwd !== currentPwd) { errEl.textContent = '当前密码错误'; errEl.style.display = ''; return; }
+  if (!newPwd || newPwd.length < 4) { errEl.textContent = '新密码至少4位'; errEl.style.display = ''; return; }
+  if (newPwd !== confirmPwd) { errEl.textContent = '两次输入的新密码不一致'; errEl.style.display = ''; return; }
+  
+  localStorage.setItem(ADMIN_KEY + '_pwd', newPwd);
+  closeModal('changePwdModal');
+  showToast('密码修改成功', 'success');
+}
+
+// ===================== View Switching =====================
+function switchView() {
+  document.getElementById('publicView').style.display = isAdmin ? 'none' : '';
+  document.getElementById('adminView').style.display = isAdmin ? '' : 'none';
+  if (isAdmin) renderAdminAll();
+}
+
+// ===================== Public Search =====================
+function publicSearch() {
+  const no = document.getElementById('publicSearchInput').value.trim();
+  if (!no) { showToast('请输入展会编号', 'warning'); return; }
+  const results = data.filter(d => d.exhibitionNo && d.exhibitionNo.toLowerCase() === no.toLowerCase());
+  renderPublicResults(results, no);
+}
+
+function renderPublicResults(records, searchNo) {
+  const container = document.getElementById('publicResults');
+  if (records.length === 0) {
+    container.innerHTML = `<div class="result-empty">
+      <div class="result-empty-icon">🔍</div>
+      <div class="result-empty-text">未找到展会编号「${searchNo}」的记录</div>
+    </div>`;
+    return;
+  }
+
+  let html = `<div class="public-results-title">📋 查询结果：展会编号 <strong>${searchNo}</strong>（${records.length}条记录）</div>`;
+  records.forEach(item => {
+    const sampleLines = item.samples.split('\n').filter(l => l.trim());
+    const ci = getCourierInfo(item);
+    const statusText = item.status === 'sent' ? '已寄样(Samples sent)' : '未寄样(Samples not sent)';
+    const statusColor = item.status === 'sent' ? 'var(--success)' : 'var(--warning)';
+    html += `<div class="result-card">
+      <div class="result-card-header">
+        <span class="result-card-no">${item.exhibitionNo}</span>
+        <span class="result-card-status" style="background:${item.status==='sent'?'var(--success-bg)':'var(--warning-bg)'};color:${statusColor};"><span style="width:6px;height:6px;border-radius:50%;background:${statusColor};display:inline-block;"></span> ${statusText}</span>
+      </div>
+      <div class="result-card-body">
+        <div class="result-row"><span class="label">客户(Customer Name)</span><span class="value">${item.customer}</span></div>
+        ${item.contact ? `<div class="result-row"><span class="label">联系人(Contact)</span><span class="value">${item.contact}</span></div>` : ''}
+        ${item.exhibition ? `<div class="result-row"><span class="label">展会名称(Exhibition Name)</span><span class="value">${item.exhibition}</span></div>` : ''}
+        <div class="result-row"><span class="label">选中产品货号(Article No)</span><span class="value"><div class="result-samples">${sampleLines.map(s=>`<span class="result-sample-tag">${s}</span>`).join('')}</div></span></div>
+        ${item.sendRemark ? `<div class="result-row"><span class="label">寄样备注(Sample Shipping Remarks)</span><span class="value" style="color:var(--warning);">${item.sendRemark}</span></div>` : ''}
+        ${item.trackingNo ? `<div class="result-tracking">
+          <span style="font-size:12px;color:var(--gray-500);">快递：${ci.name || '自动识别'} · </span>
+          <a href="javascript:void(0)" onclick="copyText('${item.trackingNo}')" style="font-size:12px;">${item.trackingNo} 📋</a>
+          <a href="${getKuaidi100Url(item.trackingNo)}" target="_blank" style="margin-left:8px;">查看物流 ↗</a>
+        </div>` : '<div style="font-size:11px;color:var(--gray-400);margin-top:4px;">暂未填写快递单号</div>'}
+        <div style="font-size:11px;color:var(--gray-300);margin-top:6px;">更新时间：${formatDateTime(item.updatedAt)}</div>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+// ===================== Admin Rendering =====================
+function renderAdminAll() { renderAdminStats(); renderExhibitionFilter(); renderAdminTable(); }
+
+function renderAdminStats() {
+  document.getElementById('statTotal').textContent = data.length;
+  document.getElementById('statSent').textContent = data.filter(d => d.status === 'sent').length;
+  document.getElementById('statPending').textContent = data.filter(d => d.status !== 'sent').length;
+}
+
+function renderExhibitionFilter() {
+  const sel = document.getElementById('exhibitionFilter');
+  const cur = sel.value;
+  const exs = [...new Set(data.map(d => d.exhibitionNo).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="all">全部展会编号</option>' + exs.map(e => `<option value="${e}" ${e===cur?'selected':''}>${e}</option>`).join('');
+}
+
+function adminFilter(type) {
+  adminCurrentFilter = type;
+  adminCurrentPage = 1;
+  renderAdminTable();
+  document.querySelectorAll('.stat-card').forEach((c,i) => {
+    c.classList.toggle('active', (type==='all'&&i===0)||(type==='sent'&&i===1)||(type==='pending'&&i===2));
+  });
+}
+
+function getFilteredAdminData() {
+  const search = document.getElementById('adminSearchInput').value.trim().toLowerCase();
+  const exhibF = document.getElementById('exhibitionFilter').value;
+  const sortF = document.getElementById('sortFilter').value;
+  let filtered = data.filter(d => {
+    if (adminCurrentFilter === 'sent' && d.status !== 'sent') return false;
+    if (adminCurrentFilter === 'pending' && d.status === 'sent') return false;
+    if (exhibF !== 'all' && d.exhibitionNo !== exhibF) return false;
+    if (search) { const h = `${d.exhibitionNo||''} ${d.customer} ${d.contact||''} ${d.exhibition||''} ${d.samples} ${d.trackingNo||''} ${d.courier||''} ${d.sendRemark||''}`.toLowerCase(); if (!h.includes(search)) return false; }
+    return true;
+  });
+  if (sortF === 'date_desc') filtered.sort((a,b) => new Date(b.updatedAt)-new Date(a.updatedAt));
+  else if (sortF === 'date_asc') filtered.sort((a,b) => new Date(a.updatedAt)-new Date(b.updatedAt));
+  else if (sortF === 'customer') filtered.sort((a,b) => a.customer.localeCompare(b.customer,'zh'));
+  else if (sortF === 'exhibitionNo') filtered.sort((a,b) => (a.exhibitionNo||'').localeCompare(b.exhibitionNo||''));
+  return filtered;
+}
+
+function renderAdminTable() {
+  const filtered = getFilteredAdminData();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (adminCurrentPage > totalPages) adminCurrentPage = totalPages;
+  const start = (adminCurrentPage-1)*PAGE_SIZE;
+  const pageData = filtered.slice(start, start+PAGE_SIZE);
+
+  const tbody = document.getElementById('adminTableBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">暂无寄样记录</div><div class="empty-hint">点击「新增」或「导入Excel」开始</div></div></td></tr>`;
+  } else {
+    tbody.innerHTML = pageData.map(item => {
+      const color = getAvatarColor(item.customer);
+      const initial = item.customer.charAt(0);
+      const lines = item.samples.split('\n').filter(l=>l.trim());
+      const preview = lines.length > 2 ? lines.slice(0,2).join('；')+`...等${lines.length}项` : lines.join('；');
+      const ci = getCourierInfo(item);
+      return `<tr>
+        <td><span class="exhibition-no-cell" onclick="showDetail('${item.id}')" title="点击查看详情">${item.exhibitionNo || '-'}</span></td>
+        <td>
+          <div class="customer-cell">
+            <div class="customer-avatar" style="background:${color}">${initial}</div>
+            <div><div class="customer-name">${item.customer}</div>${item.contact ? `<div class="customer-contact">${item.contact}</div>` : ''}</div>
+          </div>
+        </td>
+        <td style="font-size:11px;color:var(--gray-600);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.exhibition || '-'}</td>
+        <td style="max-width:180px;"><div style="font-size:11px;color:var(--gray-700);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${preview}</div></td>
+        <td>
+          <div>${ci.name ? `<span style="font-size:11px;font-weight:500;">${ci.name}</span>` : ''}</div>
+          <div style="font-size:10px;color:var(--primary);cursor:pointer;" onclick="copyText('${item.trackingNo}')" title="点击复制">${item.trackingNo || '<span style="color:var(--gray-300)">未填</span>'}</div>
+        </td>
+        <td><span class="status-badge ${item.status==='sent'?'status-sent':'status-pending'}"><span class="status-dot"></span>${item.status==='sent'?'已寄样(Samples sent)':'未寄样(Samples not sent)'}</span></td>
+        <td style="font-size:11px;color:var(--gray-400);white-space:nowrap;">${formatDateTime(item.updatedAt)}</td>
+        <td>
+          <div class="action-btns">
+            <button class="action-btn" title="详情" onclick="showDetail('${item.id}')">👁</button>
+            <button class="action-btn" title="编辑" onclick="openEditModal('${item.id}')">✏️</button>
+            <button class="action-btn" title="删除" onclick="deleteRecord('${item.id}')">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('adminPagination').innerHTML = `<span>共 ${filtered.length} 条</span><div class="page-btns">${
+    adminCurrentPage>1?`<button class="page-btn" onclick="goAdminPage(${adminCurrentPage-1})">‹</button>`:''
+  }${
+    Array.from({length:totalPages},(_,i)=>i+1).filter(p=>Math.abs(p-adminCurrentPage)<=2||p===1||p===totalPages)
+      .reduce((acc,p,i,arr)=>{if(i>0&&arr[i-1]!==p-1)acc.push('<span style="color:var(--gray-300)">...</span>');acc.push(`<button class="page-btn ${p===adminCurrentPage?'active':''}" onclick="goAdminPage(${p})">${p}</button>`);return acc;},[]).join('')
+  }${
+    adminCurrentPage<totalPages?`<button class="page-btn" onclick="goAdminPage(${adminCurrentPage+1})">›</button>`:''
+  }</div>`;
+}
+function goAdminPage(p) { adminCurrentPage = p; renderAdminTable(); }
+
+// ===================== Courier Detection =====================
+function detectCourier(trackingNo) {
+  if (!trackingNo) return { name: '', code: 'auto' };
+  const no = trackingNo.trim();
+  for (const c of COURIER_PATTERNS) { if (c.pattern.test(no)) return { name: c.name, code: c.code }; }
+  return { name: '', code: 'auto' };
+}
+function autoDetectCourier() {
+  const no = document.getElementById('fTrackingNo').value.trim();
+  const sel = document.getElementById('fCourier');
+  if (no && !sel.value) {
+    const d = detectCourier(no);
+    if (d.name) { for (const opt of sel.options) { if (opt.value === d.name) { sel.value = d.name; break; } } }
+  }
+}
+function getCourierInfo(item) {
+  if (item.courier) {
+    const found = COURIER_PATTERNS.find(c => c.name === item.courier);
+    return { name: item.courier, code: found ? found.code : 'auto' };
+  }
+  return detectCourier(item.trackingNo);
+}
+
+// ===================== Tracking Core =====================
+async function queryTrackingViaProxy(trackingNo, courierCode) {
+  const proxies = [
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+    url => `https://thingproxy.freeboard.io/fetch/${url}`,
+  ];
+  const apiUrl = `https://www.kuaidi100.com/query?type=${courierCode || 'auto'}&postid=${trackingNo}&temp=${Date.now()}`;
+  for (const proxyFn of proxies) {
+    try {
+      const resp = await fetch(proxyFn(apiUrl), { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(6000) });
+      if (!resp.ok) continue;
+      const text = await resp.text();
+      let json; try { json = JSON.parse(text); } catch(e) { continue; }
+      if (json.data && json.data.length > 0) {
+        return { traces: json.data.map(t => ({ time: t.ftime || t.time || '', context: t.context || '' })), state: String(json.state || json.stateCode || ''), message: json.message || '' };
+      }
+      if (json.state === '2013' || json.returnCode === '400') return null;
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+function queryTrackingViaJsonp(trackingNo, courierCode) {
+  return new Promise((resolve) => {
+    const cbName = 'kd100_cb_' + Date.now() + '_' + Math.floor(Math.random()*10000);
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => { cleanup(); resolve(null); }, 6000);
+    function cleanup() { clearTimeout(timeout); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function(d) {
+      cleanup();
+      if (d && d.data && d.data.length > 0) {
+        resolve({ traces: d.data.map(t => ({ time: t.ftime || t.time || '', context: t.context || '' })), state: String(d.state || d.stateCode || ''), message: d.message || '' });
+      } else { resolve(null); }
+    };
+    script.onerror = () => { cleanup(); resolve(null); };
+    script.src = `https://www.kuaidi100.com/query?type=${courierCode || 'auto'}&postid=${trackingNo}&temp=${Date.now()}&callback=${cbName}`;
+    document.head.appendChild(script);
+  });
+}
+
+async function queryTracking(trackingNo, courierCode) {
+  const jsonpResult = await queryTrackingViaJsonp(trackingNo, courierCode);
+  if (jsonpResult) return jsonpResult;
+  const proxyResult = await queryTrackingViaProxy(trackingNo, courierCode);
+  if (proxyResult) return proxyResult;
+  return null;
+}
+
+function getKuaidi100Url(trackingNo) { return `https://www.kuaidi100.com/chaxun?nu=${encodeURIComponent(trackingNo)}`; }
+function getKuaidi100MobileUrl(trackingNo) { return `https://m.kuaidi100.com/result.jsp?nu=${encodeURIComponent(trackingNo)}`; }
+
+// ===================== Detail =====================
+function showDetail(id) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  const sampleLines = item.samples.split('\n').filter(l => l.trim());
+  const ci = getCourierInfo(item);
+
+  let trackingHTML = '';
+  if (item.trackingNo) {
+    const kd100Url = getKuaidi100Url(item.trackingNo);
+    const kd100MobileUrl = getKuaidi100MobileUrl(item.trackingNo);
+    const sfUrl = `https://www.sf-express.com/sf-service-owf-web/service/rate/rateUtil/query?trackingNo=${encodeURIComponent(item.trackingNo)}`;
+    trackingHTML = `
+      <div class="detail-section">
+        <div class="detail-section-title">🚚 物流追踪</div>
+        <div class="detail-row"><span class="label">快递公司(Courier)</span><span class="value">${ci.name || '自动识别'}</span></div>
+        <div class="detail-row"><span class="label">快递单号(Tracking Number)</span><span class="value" style="cursor:pointer;color:var(--primary);" onclick="copyText('${item.trackingNo}')">${item.trackingNo} 📋</span></div>
+        <div class="tracking-iframe-wrap">
+          <div class="tracking-iframe-bar">
+            <span class="bar-title">📦 实时物流</span>
+            <div class="bar-actions">
+              <button onclick="switchIframeSrc('${kd100MobileUrl}')" title="手机版">📱</button>
+              <button onclick="switchIframeSrc('${kd100Url}')" title="桌面版">🖥</button>
+              <button onclick="retryApiQuery('${item.id}')" title="API查询">🔄 API</button>
+              <a href="${kd100Url}" target="_blank">🔗 新窗口</a>
+            </div>
+          </div>
+          <iframe id="trackingIframe" class="tracking-iframe-frame" src="${kd100MobileUrl}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" onload="onIframeLoaded()" onerror="onIframeError()"></iframe>
+          <div id="iframeFallback" class="tracking-iframe-fallback" style="display:none;">
+            <div class="fallback-icon">🚚</div>
+            <div class="fallback-text">内嵌页面加载受限，请点击下方按钮查询物流</div>
+            <div class="fallback-links">
+              <a href="${kd100Url}" target="_blank">📦 快递100查询</a>
+              ${ci.code === 'shunfeng' ? `<a href="${sfUrl}" target="_blank" class="secondary">🟢 顺丰官网</a>` : ''}
+              <a href="${kd100MobileUrl}" target="_blank" class="secondary">📱 手机版</a>
+            </div>
+          </div>
+        </div>
+        <div id="apiTrackingResult" style="display:none;"></div>
+      </div>`;
+  }
+
+  document.getElementById('detailBody').innerHTML = `
+    <div class="detail-section"><div class="detail-section-title">📋 基本信息</div>
+      <div class="detail-row"><span class="label">展会编号(Exhibition Code)</span><span class="value" style="color:var(--primary);font-weight:700;">${item.exhibitionNo || '-'}</span></div>
+      <div class="detail-row"><span class="label">客户(Customer Name)</span><span class="value">${item.customer}</span></div>
+      ${item.contact ? `<div class="detail-row"><span class="label">联系人(Contact)</span><span class="value">${item.contact}</span></div>` : ''}
+      <div class="detail-row"><span class="label">展会名称(Exhibition Name)</span><span class="value">${item.exhibition || '-'}</span></div>
+      <div class="detail-row"><span class="label">状态(Status)</span><span class="value"><span class="status-badge ${item.status==='sent'?'status-sent':'status-pending'}"><span class="status-dot"></span>${item.status==='sent'?'已寄样(Samples sent)':'未寄样(Samples not sent)'}</span></span></div>
+    </div>
+    <div class="detail-section"><div class="detail-section-title">🧵 选中产品货号(Article No)</div>
+      <div class="sample-items">${sampleLines.map(s => `<span class="sample-tag">${s}</span>`).join('')}</div>
+    </div>
+    ${item.sendRemark ? `<div class="detail-section"><div class="detail-section-title">📝 寄样备注(Sample Shipping Remarks)</div><div style="font-size:12px;color:var(--warning);line-height:1.6;">${item.sendRemark}</div></div>` : ''}
+    ${trackingHTML}
+    <div class="detail-section"><div class="detail-section-title">📅 日期</div>
+      <div class="detail-row"><span class="label">寄出日期(Dispatch Date)</span><span class="value">${item.sendDate||'-'}</span></div>
+    </div>
+    ${item.notes ? `<div class="detail-section"><div class="detail-section-title">📋 备注</div><div style="font-size:12px;color:var(--gray-600);line-height:1.6;">${item.notes}</div></div>` : ''}
+  `;
+
+  // Footer buttons based on admin
+  const footer = document.getElementById('detailFooter');
+  if (isAdmin) {
+    footer.innerHTML = `
+      <button class="btn btn-white" onclick="closeModal('detailModal')">关闭</button>
+      <button class="btn btn-outline" onclick="openEditModal('${id}')">编辑</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteRecord('${id}')">删除</button>
+    `;
+  } else {
+    footer.innerHTML = `<button class="btn btn-white" onclick="closeModal('detailModal')">关闭</button>`;
+  }
+
+  document.getElementById('detailModal').classList.add('show');
+
+  // Async API query
+  if (item.trackingNo) loadDetailTracking(id);
+}
+
+// iframe handlers
+let iframeLoadTimer = null;
+function onIframeLoaded() {
+  clearTimeout(iframeLoadTimer);
+  iframeLoadTimer = setTimeout(() => {
+    const iframe = document.getElementById('trackingIframe');
+    const fallback = document.getElementById('iframeFallback');
+    if (iframe && fallback) {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        if (doc && doc.body && doc.body.innerHTML.length < 50) { iframe.style.display = 'none'; fallback.style.display = ''; }
+      } catch(e) { /* cross-origin = page loaded OK */ }
+    }
+  }, 2000);
+}
+function onIframeError() {
+  const iframe = document.getElementById('trackingIframe');
+  const fallback = document.getElementById('iframeFallback');
+  if (iframe) iframe.style.display = 'none';
+  if (fallback) fallback.style.display = '';
+}
+function switchIframeSrc(url) {
+  const iframe = document.getElementById('trackingIframe');
+  const fallback = document.getElementById('iframeFallback');
+  if (iframe) { iframe.style.display = ''; iframe.src = url; }
+  if (fallback) fallback.style.display = 'none';
+}
+
+async function retryApiQuery(id) {
+  const item = data.find(d => d.id === id);
+  if (!item || !item.trackingNo) return;
+  const container = document.getElementById('apiTrackingResult');
+  if (!container) return;
+  container.style.display = '';
+  container.innerHTML = '<div class="tracking-loading"><span class="spinner">⏳</span> 正在通过API查询物流...</div>';
+  const ci = getCourierInfo(item);
+  const result = await queryTracking(item.trackingNo, ci.code);
+  if (result && result.traces.length > 0) {
+    item.trackingCache = { traces: result.traces, state: result.state, fetchedAt: new Date().toISOString() };
+    saveData();
+    container.innerHTML = `<div class="tracking-api-result">
+      <div class="api-header">✅ API查询成功（${result.traces.length}条记录）</div>
+      <div class="tracking-timeline" style="padding:8px 12px 8px 24px;max-height:160px;overflow-y:auto;">
+        ${result.traces.map(t => `<div class="track-item"><div class="track-dot"></div><div class="track-text">${t.context}</div><div class="track-time">${t.time}</div></div>`).join('')}
+      </div>
+    </div>`;
+  } else {
+    container.innerHTML = `<div class="tracking-api-result">
+      <div class="api-header" style="color:var(--gray-400);">⚠️ API查询未获取到数据</div>
+      <div style="padding:10px 12px;font-size:11px;color:var(--gray-400);">上方iframe页面可直接查看物流，或点击「🔗 新窗口」打开快递100查询。</div>
+    </div>`;
+  }
+}
+
+async function loadDetailTracking(id) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  const result = await queryTracking(item.trackingNo, getCourierInfo(item).code);
+  if (result && result.traces.length > 0) {
+    item.trackingCache = { traces: result.traces, state: result.state, fetchedAt: new Date().toISOString() };
+    saveData();
+    const container = document.getElementById('apiTrackingResult');
+    if (container) {
+      container.style.display = '';
+      container.innerHTML = `<div class="tracking-api-result">
+        <div class="api-header">✅ API查询成功（${result.traces.length}条记录）</div>
+        <div class="tracking-timeline" style="padding:8px 12px 8px 24px;max-height:160px;overflow-y:auto;">
+          ${result.traces.map(t => `<div class="track-item"><div class="track-dot"></div><div class="track-text">${t.context}</div><div class="track-time">${t.time}</div></div>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+}
+
+// ===================== CRUD =====================
+function openAddModal() {
+  editingId = null;
+  document.getElementById('formTitle').textContent = '新增寄样记录';
+  ['fExhibitionNo','fCustomer','fContact','fExhibition','fSamples','fTrackingNo','fSendRemark','fNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fCourier').value = '';
+  document.getElementById('fStatus').value = 'pending';
+  document.getElementById('fSendDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('formModal').classList.add('show');
+}
+
+function openEditModal(id) {
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  editingId = id;
+  document.getElementById('formTitle').textContent = '编辑寄样记录';
+  document.getElementById('fExhibitionNo').value = item.exhibitionNo || '';
+  document.getElementById('fCustomer').value = item.customer;
+  document.getElementById('fContact').value = item.contact || '';
+  document.getElementById('fExhibition').value = item.exhibition || '';
+  document.getElementById('fSamples').value = item.samples;
+  document.getElementById('fCourier').value = item.courier || '';
+  document.getElementById('fTrackingNo').value = item.trackingNo || '';
+  document.getElementById('fSendDate').value = item.sendDate || '';
+  document.getElementById('fStatus').value = item.status || 'pending';
+  document.getElementById('fSendRemark').value = item.sendRemark || '';
+  document.getElementById('fNotes').value = item.notes || '';
+  document.getElementById('formModal').classList.add('show');
+  closeModal('detailModal');
+}
+
+function saveRecord() {
+  const exhibitionNo = document.getElementById('fExhibitionNo').value.trim();
+  const customer = document.getElementById('fCustomer').value.trim();
+  const samples = document.getElementById('fSamples').value.trim();
+  if (!exhibitionNo) { showToast('请填写展会编号','error'); return; }
+  if (!customer) { showToast('请填写客户(Customer Name)','error'); return; }
+  if (!samples) { showToast('请填写选中产品货号(Article No)','error'); return; }
+
+  const record = {
+    id: editingId || genId(), exhibitionNo, customer,
+    contact: document.getElementById('fContact').value.trim(),
+    exhibition: document.getElementById('fExhibition').value.trim(),
+    samples,
+    courier: document.getElementById('fCourier').value,
+    trackingNo: document.getElementById('fTrackingNo').value.trim(),
+    status: document.getElementById('fStatus').value || 'pending',
+    sendDate: document.getElementById('fSendDate').value,
+    sendRemark: document.getElementById('fSendRemark').value.trim(),
+    notes: document.getElementById('fNotes').value.trim(),
+    updatedAt: new Date().toISOString(),
+    trackingCache: null,
+  };
+
+  if (editingId) {
+    const idx = data.findIndex(d => d.id === editingId);
+    if (idx >= 0) {
+      record.trackingCache = data[idx].trackingCache || null;
+      record.createdAt = data[idx].createdAt;
+      data[idx] = record;
+    }
+  } else {
+    record.createdAt = new Date().toISOString();
+    data.unshift(record);
+  }
+  saveData(); closeModal('formModal'); renderAdminAll();
+  showToast(editingId ? '已更新' : '已添加', 'success');
+}
+
+function deleteRecord(id) {
+  if (!confirm('确定删除此记录？')) return;
+  data = data.filter(d => d.id !== id); saveData(); renderAdminAll(); closeModal('detailModal'); showToast('已删除','success');
+}
+
+// ===================== Batch Tracking =====================
+function batchTrackAll() {
+  const items = data.filter(d => d.trackingNo);
+  if (items.length === 0) { showToast('没有填写运单号的记录','warning'); return; }
+  doBatchTrack(items);
+}
+
+async function doBatchTrack(items) {
+  trackingResults = [];
+  document.getElementById('trackingBody').innerHTML = `<div style="text-align:center;padding:30px;"><div style="font-size:24px;margin-bottom:8px;">⏳</div><div>正在查询 ${items.length} 个运单...</div><div style="font-size:12px;color:var(--gray-400);margin-top:4px;" id="trackProgress">0 / ${items.length}</div><div style="margin-top:12px;"><button class="btn btn-sm btn-outline" onclick="openAllTrackingLinks()">🔗 全部在新窗口查询</button></div></div>`;
+  document.getElementById('trackingModal').classList.add('show');
+
+  let completed = 0;
+  for (const item of items) {
+    const ci = getCourierInfo(item);
+    const result = await queryTracking(item.trackingNo, ci.code);
+    if (result) { item.trackingCache = { traces: result.traces, state: result.state, fetchedAt: new Date().toISOString() }; saveData(); }
+    trackingResults.push({
+      id: item.id, customer: item.customer, exhibitionNo: item.exhibitionNo,
+      trackingNo: item.trackingNo, courier: ci.name,
+      success: !!(result && result.traces.length > 0),
+      latestTrace: result && result.traces.length > 0 ? result.traces[0].context : null,
+      latestTime: result && result.traces.length > 0 ? result.traces[0].time : null,
+    });
+    completed++;
+    const prog = document.getElementById('trackProgress');
+    if (prog) prog.textContent = `${completed} / ${items.length}`;
+  }
+  saveData(); renderAdminTable();
+  renderBatchTrackingResults();
+}
+
+function renderBatchTrackingResults() {
+  const success = trackingResults.filter(r=>r.success).length;
+  let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--gray-600);">共查询 ${trackingResults.length} 个运单，${success} 个获取到物流信息</div>
+  <div style="margin-bottom:12px;"><button class="btn btn-sm btn-outline" onclick="openAllTrackingLinks()">🔗 全部在新窗口查询</button></div>
+  <div style="max-height:400px;overflow-y:auto;">`;
+  trackingResults.forEach(r => {
+    const kd100Url = getKuaidi100Url(r.trackingNo);
+    html += `<div style="padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-weight:600;font-size:13px;">${r.customer}</span>
+        <span style="font-size:11px;color:var(--gray-400);">${r.exhibitionNo||''}</span>
+      </div>
+      <div style="font-size:11px;color:var(--gray-500);">${r.courier||'自动识别'} · ${r.trackingNo}</div>
+      ${r.success && r.latestTrace ? `<div style="font-size:11px;color:var(--gray-700);margin-top:4px;">📦 ${r.latestTrace}<br><span style="color:var(--gray-400)">${r.latestTime}</span></div>` : ''}
+      ${!r.success ? `<div style="margin-top:4px;font-size:11px;color:var(--gray-400);">API未获取到 · <a href="${kd100Url}" target="_blank" style="color:var(--primary);">快递100查询 ↗</a></div>` : ''}
+    </div>`;
+  });
+  html += '</div>';
+  document.getElementById('trackingBody').innerHTML = html;
+}
+
+function openAllTrackingLinks() {
+  const items = data.filter(d => d.trackingNo);
+  if (items.length === 0) return;
+  if (items.length > 5 && !confirm(`将打开 ${items.length} 个窗口，是否继续？`)) return;
+  items.forEach((item, i) => { setTimeout(() => { window.open(getKuaidi100Url(item.trackingNo), '_blank'); }, i * 300); });
+}
+
+// ===================== QR Code Management =====================
+function showQRManager() {
+  const exhibitionNos = [...new Set(data.map(d => d.exhibitionNo).filter(Boolean))].sort();
+  const body = document.getElementById('qrBody');
+
+  if (exhibitionNos.length === 0) {
+    body.innerHTML = '<div class="empty-state"><div class="empty-icon">📱</div><div class="empty-text">暂无展会编号</div><div class="empty-hint">导入数据后将自动生成二维码</div></div>';
+    document.getElementById('qrModal').classList.add('show');
+    return;
+  }
+
+  body.innerHTML = `<p style="font-size:13px;color:var(--gray-600);margin-bottom:12px;">共 ${exhibitionNos.length} 个展会编号，每个编号对应一个查询二维码和链接</p>
+  <div class="qr-grid" id="qrGrid"></div>`;
+
+  document.getElementById('qrModal').classList.add('show');
+
+  // Generate QR codes after modal is visible
+  setTimeout(() => {
+    const grid = document.getElementById('qrGrid');
+    exhibitionNos.forEach(no => {
+      const card = document.createElement('div');
+      card.className = 'qr-card';
+      const count = data.filter(d => d.exhibitionNo === no).length;
+      const shareUrl = getShareUrl(no);
+      card.innerHTML = `
+        <div class="qr-card-title">${no}</div>
+        <div style="font-size:11px;color:var(--gray-400);margin-bottom:8px;">${count} 条寄样记录</div>
+        <div id="qr_${no.replace(/[^a-zA-Z0-9]/g,'_')}" style="margin:0 auto 8px;width:160px;height:160px;"></div>
+        <div class="qr-card-link">${shareUrl}</div>
+        <div class="qr-card-actions">
+          <button class="btn btn-xs btn-outline" onclick="copyText('${shareUrl}')">📋 复制链接</button>
+          <a href="${shareUrl}" target="_blank" class="btn btn-xs btn-outline" style="text-decoration:none;">🔗 打开</a>
+          <button class="btn btn-xs btn-outline" onclick="downloadQR('${no.replace(/'/g,"\\'")}')">💾 下载</button>
+        </div>`;
+      grid.appendChild(card);
+      // Generate QR code
+      try {
+        QRCode.toCanvas(document.createElement('canvas'), shareUrl, { width: 160, margin: 1, color: { dark: '#1F2937' } }, function(err, canvas) {
+          if (!err) {
+            const container = document.getElementById('qr_' + no.replace(/[^a-zA-Z0-9]/g,'_'));
+            if (container) { container.innerHTML = ''; canvas.style.margin = '0 auto'; container.appendChild(canvas); }
+          }
+        });
+      } catch(e) {}
+    });
+  }, 100);
+}
+
+function downloadQR(exhibitionNo) {
+  const shareUrl = getShareUrl(exhibitionNo);
+  try {
+    QRCode.toDataURL(shareUrl, { width: 400, margin: 2, color: { dark: '#1F2937' } }, function(err, dataUrl) {
+      if (!err) {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `二维码_${exhibitionNo}.png`;
+        a.click();
+      }
+    });
+  } catch(e) { showToast('二维码生成失败','error'); }
+}
+
+// ===================== Import / Export =====================
+function openImportModal() {
+  importStep = 1; importRawData = null; importHeaders = []; importMapping = {}; importPreviewData = [];
+  showImportStep(1);
+  document.getElementById('importFile').value = '';
+  document.getElementById('importNextBtn').disabled = true;
+  document.getElementById('importNextBtn').textContent = '下一步';
+  document.getElementById('importBackBtn').style.display = 'none';
+  document.getElementById('importModal').classList.add('show');
+}
+
+function showImportStep(step) {
+  importStep = step;
+  document.getElementById('importContent1').style.display = step===1?'':'none';
+  document.getElementById('importContent2').style.display = step===2?'':'none';
+  document.getElementById('importContent3').style.display = step===3?'':'none';
+  [1,2,3].forEach(s => document.getElementById('importStep'+s).classList.toggle('active', s===step));
+  document.getElementById('importBackBtn').style.display = step>1?'':'none';
+  document.getElementById('importNextBtn').textContent = step===3 ? '确认导入' : '下一步';
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 5*1024*1024) { showToast('文件超过5MB','error'); return; }
+  parseExcelFile(file);
+}
+
+const importZone = document.getElementById('importZone');
+importZone.addEventListener('dragover', e => { e.preventDefault(); importZone.classList.add('dragover'); });
+importZone.addEventListener('dragleave', () => importZone.classList.remove('dragover'));
+importZone.addEventListener('drop', e => {
+  e.preventDefault(); importZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && (file.name.endsWith('.xlsx')||file.name.endsWith('.xls'))) parseExcelFile(file);
+  else showToast('请上传 .xlsx 或 .xls 文件','error');
+});
+
+function parseExcelFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (jsonData.length < 2) { showToast('Excel内容为空','error'); return; }
+      importHeaders = jsonData[0].map(h => String(h).trim());
+      importRawData = jsonData.slice(1).filter(row => row.some(cell => String(cell).trim()));
+      autoMapColumns();
+      document.getElementById('importNextBtn').disabled = false;
+      showToast(`已解析 ${importRawData.length} 行数据`, 'success');
+    } catch(err) { showToast('Excel解析失败: ' + err.message, 'error'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function autoMapColumns() {
+  importMapping = {};
+  const aliases = {
+    exhibitionNo: ['展会编号','展会编号(Exhibition Code)','编号','展号','exhibition no','exhibitionno','exhibition code','no'],
+    customer: ['客户名称','客户(Customer Name)','客户','客户名','customer name','customer'],
+    contact: ['联系人(Contact)','联系','contact'],
+    exhibition: ['展会名称','展会名称(Exhibition Name)','展会','展会名','exhibition name','exhibition','expo'],
+    sendDate: ['寄出日期','寄出日期(Dispatch Date)','寄出时间','发货日期','dispatch date','send date','date'],
+    samples: ['选中产品货号','选中产品货号(Article No)','样品明细','样品','样品信息','货号明细','样品描述','article no','samples'],
+    courier: ['快递公司','物流公司','快递','courier'],
+    trackingNo: ['快递单号','快递单号(Tracking Number)','运单号','物流单号','单号','tracking number','tracking','waybill'],
+    sendRemark: ['寄样备注','寄样备注(Sample Shipping Remarks)','寄样说明','sample shipping remarks','send remark'],
+    status: ['状态','状态(Status)','寄样状态','status','sample status'],
+    notes: ['备注','说明','notes','remark'],
+  };
+  SYSTEM_FIELDS.forEach(field => {
+    const al = aliases[field.key] || [];
+    let matchIdx = -1;
+    for (let i = 0; i < importHeaders.length; i++) {
+      if (al.some(a => importHeaders[i].toLowerCase() === a.toLowerCase())) { matchIdx = i; break; }
+    }
+    if (matchIdx === -1) {
+      for (let i = 0; i < importHeaders.length; i++) {
+        if (al.some(a => importHeaders[i].includes(a) || a.includes(importHeaders[i]))) { matchIdx = i; break; }
+      }
+    }
+    importMapping[field.key] = matchIdx;
+  });
+}
+
+function renderMappingStep() {
+  const options = '<option value="-1">-- 不导入 --</option>' + importHeaders.map((h,i) => `<option value="${i}">${h}</option>`).join('');
+  document.getElementById('mappingRows').innerHTML = SYSTEM_FIELDS.map(field => {
+    const selVal = importMapping[field.key] !== undefined ? importMapping[field.key] : -1;
+    return `<div class="col-mapping-row">
+      <span class="col-mapping-src">${field.label}${field.required?' <span style="color:var(--danger)">*</span>':''}</span>
+      <span class="col-mapping-arrow">→</span>
+      <select class="col-mapping-select" data-field="${field.key}" onchange="importMapping['${field.key}']=parseInt(this.value)">
+        ${options.replace(`value="${selVal}"`, `value="${selVal}" selected`)}
+      </select>
+    </div>`;
+  }).join('');
+}
+
+function buildPreviewData() {
+  importPreviewData = importRawData.map(row => {
+    const record = {};
+    SYSTEM_FIELDS.forEach(f => {
+      const idx = importMapping[f.key];
+      if (idx >= 0 && idx < row.length) {
+        let val = row[idx]; if (val instanceof Date) val = val.toISOString().slice(0,10); else val = String(val).trim();
+        record[f.key] = val;
+      } else record[f.key] = '';
+    });
+    return record;
+  });
+}
+
+function renderPreviewStep() {
+  buildPreviewData();
+  const valid = importPreviewData.filter(r => r.exhibitionNo && r.customer && r.samples);
+  const invalid = importPreviewData.filter(r => !r.exhibitionNo || !r.customer || !r.samples);
+  document.getElementById('previewStats').innerHTML = `<span>共 <strong>${importPreviewData.length}</strong> 行</span><span>有效 <strong style="color:var(--success)">${valid.length}</strong></span><span>缺少必填 <strong style="color:var(--danger)">${invalid.length}</strong></span>`;
+  document.getElementById('previewTable').innerHTML = `<thead><tr><th>✓</th><th>展会编号(Exhibition Code)</th><th>客户</th><th>选中产品货号(Article No)</th><th>快递</th><th>快递单号(Tracking Number)</th><th>寄样备注</th><th>状态(Status)</th></tr></thead><tbody>${
+    importPreviewData.slice(0,100).map(r => {
+      const ok = r.exhibitionNo && r.customer && r.samples;
+      let statusDisplay = '-';
+      if (r.status) { const s = String(r.status).trim().toLowerCase(); if (s.includes('已寄样') || s === 'sent') statusDisplay = '已寄样(Samples sent)'; else if (s.includes('未寄样') || s === 'pending') statusDisplay = '未寄样(Samples not sent)'; else statusDisplay = r.status; }
+      return `<tr style="${ok?'':'background:var(--danger-bg)'}"><td>${ok?'✅':'❌'}</td><td>${r.exhibitionNo||'<span style="color:var(--danger)">缺</span>'}</td><td>${r.customer||'<span style="color:var(--danger)">缺</span>'}</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.samples}</td><td>${r.courier||'-'}</td><td>${r.trackingNo||'-'}</td><td>${r.sendRemark||'-'}</td><td>${statusDisplay}</td></tr>`;
+    }).join('')
+  }</tbody>`;
+}
+
+function importGoNext() {
+  if (importStep === 1) { if (!importRawData) { showToast('请先上传文件','error'); return; } renderMappingStep(); showImportStep(2); }
+  else if (importStep === 2) { renderPreviewStep(); showImportStep(3); }
+  else if (importStep === 3) { doImport(); }
+}
+function importGoBack() { if (importStep > 1) showImportStep(importStep - 1); }
+
+function doImport() {
+  buildPreviewData();
+  let imported = 0, overwritten = 0, skipped = 0;
+  importPreviewData.forEach(record => {
+    if (!record.exhibitionNo || !record.customer || !record.samples) { skipped++; return; }
+    // Parse imported status value
+    let importedStatus = '';
+    if (record.status) {
+      const s = String(record.status).trim().toLowerCase();
+      if (s.includes('已寄样') || s === 'sent' || s === 'samples sent') importedStatus = 'sent';
+      else if (s.includes('未寄样') || s === 'pending' || s === 'samples not sent') importedStatus = 'pending';
+    }
+    // Find existing record by exhibitionNo + customer (overwrite instead of merge)
+    const existing = data.find(d => d.exhibitionNo === record.exhibitionNo && d.customer === record.customer);
+    if (existing) {
+      // Full overwrite: update all fields including status from import
+      // Full overwrite: imported values replace existing, even if empty
+      existing.samples = record.samples;
+      existing.contact = record.contact;
+      existing.exhibition = record.exhibition;
+      existing.sendDate = record.sendDate;
+      existing.courier = record.courier;
+      existing.trackingNo = record.trackingNo;
+      existing.sendRemark = record.sendRemark;
+      existing.notes = record.notes;
+      // Use imported status directly; if not provided, fall back to existing status
+      existing.status = importedStatus || existing.status || 'pending';
+      if (!existing.courier && record.trackingNo) { const d = detectCourier(record.trackingNo); existing.courier = d.name; }
+      existing.updatedAt = new Date().toISOString();
+      overwritten++;
+    } else {
+      let courier = record.courier;
+      if (!courier && record.trackingNo) { const d = detectCourier(record.trackingNo); courier = d.name; }
+      // Use imported status; if not provided, infer from trackingNo
+      let status = importedStatus || (record.trackingNo ? 'sent' : 'pending');
+      data.unshift({
+        id: genId(), exhibitionNo: record.exhibitionNo, customer: record.customer,
+        contact: record.contact||'', exhibition: record.exhibition||'',
+        sendDate: record.sendDate||'', samples: record.samples,
+        courier: courier||'', trackingNo: record.trackingNo||'',
+        sendRemark: record.sendRemark||'',
+        status: status,
+        trackingCache: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      });
+      imported++;
+    }
+  });
+  saveData(); renderAdminAll(); closeModal('importModal');
+  showToast(`新增 ${imported} 条，覆盖更新 ${overwritten} 条，跳过 ${skipped} 条`, 'success');
+}
+
+function downloadTemplate() {
+  const headers = ['展会编号(Exhibition Code)','客户(Customer Name)','联系人(Contact)','展会名称(Exhibition Name)','寄出日期(Dispatch Date)','选中产品货号(Article No)','快递公司','快递单号(Tracking Number)','寄样备注(Sample Shipping Remarks)','状态(Status)','备注'];
+  const examples = [
+    ['ZH2026001','ABC贸易','张经理','2026上海intertextile','2026-06-10','YB-2201 春亚纺 深蓝 3米','顺丰','SF1234567890','需加急寄出','已寄样(Samples sent)','需加急'],
+    ['ZH2026001','XYZ服装','李总','2026上海intertextile','2026-06-10','YB-3302 塔夫隆 黑色 5米\nYB-3303 塔夫隆 灰色 5米','德邦','DBL1234567890','分两批寄','未寄样(Samples not sent)',''],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
+  ws['!cols'] = [{wch:14},{wch:14},{wch:10},{wch:22},{wch:12},{wch:36},{wch:10},{wch:18},{wch:16},{wch:20},{wch:16}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '寄样记录');
+  const instr = [['字段说明','格式要求','是否必填'],['展会编号(Exhibition Code)','唯一编号如ZH2026001','是'],['客户(Customer Name)','文本','是'],['联系人(Contact)','文本','否'],['展会名称(Exhibition Name)','展会全称','否'],['寄出日期(Dispatch Date)','日期 如2026-06-10','否'],['选中产品货号(Article No)','每行一个，多个用Alt+Enter换行','是'],['快递公司','顺丰/德邦/中通等，可留空自动识别','否'],['快递单号(Tracking Number)','文本','否'],['寄样备注(Sample Shipping Remarks)','寄样相关说明','否'],['状态(Status)','已寄样(Samples sent) 或 未寄样(Samples not sent)，导入时直接覆盖原状态','否'],['备注','文本','否']];
+  const wsI = XLSX.utils.aoa_to_sheet(instr);
+  wsI['!cols'] = [{wch:14},{wch:50},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsI, '填写说明');
+  XLSX.writeFile(wb, '展会寄样导入模板.xlsx');
+  showToast('模板已下载','success');
+}
+
+function exportData() {
+  if (data.length === 0) { showToast('暂无数据','error'); return; }
+  const headers = ['展会编号(Exhibition Code)','客户(Customer Name)','联系人(Contact)','展会名称(Exhibition Name)','寄出日期(Dispatch Date)','选中产品货号(Article No)','快递公司','快递单号(Tracking Number)','状态(Status)','寄样备注(Sample Shipping Remarks)','备注','更新时间'];
+  const rows = data.map(d => [d.exhibitionNo||'',d.customer,d.contact||'',d.exhibition||'',d.sendDate||'',d.samples,d.courier||'',d.trackingNo||'',d.status==='sent'?'已寄样(Samples sent)':'未寄样(Samples not sent)',d.sendRemark||'',d.notes||'',formatDateTime(d.updatedAt)]);
+  const ws = XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols'] = [{wch:14},{wch:14},{wch:10},{wch:22},{wch:12},{wch:36},{wch:10},{wch:18},{wch:8},{wch:16},{wch:16},{wch:18}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '寄样记录');
+  XLSX.writeFile(wb, `寄样记录_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast('已导出Excel','success');
+}
+
+// ===================== Init =====================
+function init() {
+  loadData();
+  checkAdminSession();
+
+  // Check URL params for direct search
+  const params = new URLSearchParams(window.location.search);
+  const searchNo = params.get('no');
+
+  if (isAdmin) {
+    switchView();
+    if (searchNo) {
+      document.getElementById('adminSearchInput').value = searchNo;
+      renderAdminTable();
+    }
+  } else {
+    switchView();
+    if (searchNo) {
+      document.getElementById('publicSearchInput').value = searchNo;
+      publicSearch();
+    }
+  }
+}
+
+init();
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('show'); });
+});
+</script>
+</body>
+</html>
